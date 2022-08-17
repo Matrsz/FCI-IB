@@ -1,34 +1,25 @@
 ---
-title: "TP N°1"
-subtitle: "Fundamentos de Comunicaciones Inalámbricas"
-author: "Matías Roqueta"
+title: TP N°1
+subtitle: Fundamentos de Comunicaciones Inalámbricas
+author: Matías Roqueta
+institute: Instituto Balseiro
 lang: es
 bibliography: inalambricas.bib
 biblio-style: ieee
 format: 
   pdf:
+    include-in-header: headers.tex
     cite-method: biblatex
     classoption: twocolumn
     geometry:
-      - top=10mm
+      - top=20mm
       - bottom=20mm
       - left=12mm
       - right=12mm
     highlight-style: arrow
+    pagestyle: headings
     latex-auto-install: true
-    include-in-header: 
-      text: |
-        \usepackage{circuitikz}
-        \usepackage{graphicx}
-        \usepackage{authblk}
-        \usepackage{fancyhdr}
-        \setmonofont[Scale=0.9]{Courier New}
-    include-before-body: 
-        \lhead{Fundamentos de Comunicaciones Inalámbricas}
-        \rhead{TP N°1}
-        \chead{}
-        \lfoot{M. Roqueta}
-        \cfoot{Instituto Balseiro} 
+    keep-tex: true
 jupyter: julia-1.7 
 ---
 ```{julia}

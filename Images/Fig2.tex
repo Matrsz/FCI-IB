@@ -1,0 +1,26 @@
+\begin{center}
+    \resizebox{\linewidth}{!}{
+    \begin{circuitikz}
+      \draw (0,0) node[dinantenna,label={above left:Tx}]{} --
+            (\r0,0) node[dinantenna,label={above left:Rx}]{} --
+            (\d,0);
+      \draw[ultra thick] (\d,1.4) -- 
+                         (\d,0);
+      \draw[->, dashed] (0,1.02) -- 
+                        (\r0-0.1,1.02);
+      \draw[->, dashed] (0,1.2) -- 
+                        (\d,1.2) -- 
+                        (\d,1.02) -- 
+                        (\r0+0.1,1.02);
+
+      \draw[|-|, thin] (0,      -0.4) node[label={below:0}]{}--
+                       (\r0,    -0.4) node[label={below:200m}]{} -- 
+                       (\d-\r0, -0.4) node[label={below:800m}]{} --
+                       (\d,     -0.4) node[label={below:1km}]{} ;
+      \draw[|-|]       (\r0,    -0.4) -- 
+                       (\d/2,   -0.4) node[style={fill=white}]{Intervalo de Simulación} --
+                       (\d-\r0, -0.4);
+    \end{circuitikz}
+    }
+\end{center}
+  

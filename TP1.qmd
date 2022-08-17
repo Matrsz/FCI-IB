@@ -1,0 +1,262 @@
+---
+title: "TP N°1"
+subtitle: "Fundamentos de Comunicaciones Inalámbricas"
+author: "Matías Roqueta"
+lang: es
+bibliography: inalambricas.bib
+biblio-style: ieee
+format: 
+  pdf:
+    cite-method: biblatex
+    classoption: twocolumn
+    geometry:
+      - top=10mm
+      - bottom=20mm
+      - left=12mm
+      - right=12mm
+    highlight-style: arrow
+    latex-auto-install: true
+    include-in-header: 
+      text: |
+        \usepackage{circuitikz}
+        \usepackage{graphicx}
+        \usepackage{authblk}
+        \usepackage{fancyhdr}
+        \setmonofont[Scale=0.9]{Courier New}
+    include-before-body: 
+        \lhead{Fundamentos de Comunicaciones Inalámbricas}
+        \rhead{TP N°1}
+        \chead{}
+        \lfoot{M. Roqueta}
+        \cfoot{Instituto Balseiro} 
+jupyter: julia-1.7 
+---
+```{julia}
+#| echo: false
+#| output: false
+using FFTW
+using Plots, Measures
+pyplot()
+
+δ(τ)=[abs(i)==minimum(abs.(τ)) ? 1 : 0 for i in τ]
+c = 3e8
+```
+## Introducción
+
+Evaluamos un modelo de canal inalámbrico de dos caminos, definido como un sistema LTV caracterizado por su respuesta al impulso
+$$
+  h(\tau, t) = \sum_{i=1}^2 a_i(t)\delta\left(\tau - \tau_i(t)\right) 
+$$ {#eq-h}
+Su respuesta en frecuencia se consigue con la transformada de Fourier respecto a la variable $\tau$
+$$
+  H(f, t) = \sum_{i=1}^2 a_i(t)e^{-2\pi f \tau_i(t)}
+$$ {#eq-H}
+
+Estudiamos el caso particular de canal inalámbrico variante en el tiempo presentado en la @fig-canal
+
+\usetikzlibrary{math}
+\tikzmath{\d = 10; \r0 = 2;}
+![Canal inalámbrico de 2 caminos conformado por una antena emisora Tx estática, antena receptora Rx móvil, y un reflector.](Images/Fig1.tex){#fig-canal}
+
+El resultado de este canal es desarrollado en @tse_2, resultando en las expresiones
+$$
+\begin{aligned}
+  a_1(t)&=+\frac{|\alpha|}{x_1(t)} &\qquad
+  \tau_1(t)&=\frac{x_1(t)}{c}\\
+  a_2(t)&=-\frac{|\alpha|}{x_2(t)} &\qquad
+  \tau_2(t)&=\frac{x_2(t)}{c}\\
+\end{aligned}
+$$ {#eq-ai}
+En donde $x_1(t)$ y $x_2(t)$ son la distancia de cada camino, y $\tau_2$ contempla el salto de fase provocado por la reflexión
+$$
+  x_1(t) = r_0+vt \qquad x_2(t)=2d-r_0-vt
+$$ {#eq-xi}
+
+Para estudiar la interferencia resulta necesario expresar la diferencia de fase entre los dos caminos
+$$
+  \Delta\theta = 2\pi f \left[\tau_2(t)-\tau_1(t)\right]+\pi
+$$ {#eq-fase}
+Desarrollando la expresión se llega al resultado
+$$
+\Delta\theta = \frac{4\pi}{c}f\left(d-r\right)+\pi
+$$ {#eq-fase2}
+
+La expresión resulta en interferencia constructiva cuando $\Delta\theta$ es un múltiplo par de $\pi$, y en interferencia destructiva cuando este es un múltiplo impar de $\pi$
+
+Viendo la @eq-fase2 como función de $r$ a un $f$ fijo, Se define la _longitud de coherencia_ como la distancia entre un máximo y un mínimo de interferencia
+$$
+  \Delta x_c = \frac{c}{4f}
+$$ {#eq-xc}
+Asimimsmo, vista como función de $f$ a un $r$ fijo, se define el _ancho de banda de coherencia_ de la misma forma
+$$
+  \Delta f_c = \frac{c}{2(d-r)}
+$$ {#eq-fc}
+
+## Implementación
+
+Implementamos la función genérica para un canal de dos caminos en el dominio del tiempo, @eq-h
+```{julia}
+#| output: false
+h(τ,t) = ai[1](t).*δ(τ.-τi[1](t)).+
+         ai[2](t).*δ(τ.-τi[2](t))
+```
+Así como en el dominio de la frecuencia, @eq-H
+```{julia}
+#| output: false
+H(f,t) = ai[1](t)*exp(-im*2π*f*τi[1](t))+ 
+         ai[2](t)*exp(-im*2π*f*τi[2](t))
+```
+
+Para simular el caso particular descrito en la @fig-canal, especificamos las expresiones de $a_i$ y $\tau_i$ de la @eq-ai como vectores de funciones
+```{julia} 
+#| output: false
+ai = [t -> 1/xi[1](t), t -> -1/xi[2](t)]
+
+τi = [t -> xi[1](t)/c, t -> xi[2](t)/c]
+```
+Igualmente definimos los $x_i$ descritos en la @eq-xi
+```{julia}
+#| output: false
+xi = [t -> r0+v*t, t -> 2*d-r0-v*t]
+```
+
+Implementamos también el cálculo de la diferencia de fase, @eq-fase, tal que retorne valores $\Delta\theta\in\left[-\pi, \pi\right]$
+```{julia}
+#| output: false
+function Δθ(f, t)
+  Δθ = 2π*f*(τi[2](t)-τi[1](t))+π
+  return mod(Δθ+π, 2π)-π
+end
+```
+
+```{julia}
+#| output: false
+xc(f) = c/(4*f)
+fc(r) = c/(2*(d-r))
+```
+
+## Simulación
+
+Vamos a simular la respuesta del canal en un ancho de banda de 10 MHz respecto a una frecuencia central $f_0$ de 1 GHz. El dominio de la frecuencia es discretizado en 2048 puntos, el vector de tiempos $\tau$ correspondiente se obtiene con la función `fftfreq`.
+
+```{julia}
+#| output: false
+f0 = 1e9
+N  = 2048
+f  = range(-10e6, 10e6, N).+f0
+Δτ = 1/(f[2]-f[1])
+τ  = fftfreq(N, Δτ) |> fftshift
+```
+
+Se fija una distancia de la emisora al reflector de 1 km, y una posición inicial de la receptora de de 200 m. Se estudian posiciones de la antena receptora desde $r=r_0$ hasta $r=d-r_0$, tal como indica la @fig-rango.
+
+![Intervalo de simulación del canal, se evalúan posiciones de la receptora $r_{\text{Rx}}\in [r_0,\, d-r_0]$.](Images/Fig2.tex){#fig-rango}
+
+Se considera una velocidad de la receptora de 60 km/h y se eligen tiempos $t$ tal que las posiciones de la receptora estén en el intervalo de evaluación. 
+```{julia}
+#| output: false
+d  = 1000
+r0 = 200
+v  = 60*1000/3600
+t  = range(0, d-2r0, N)./v
+```
+Se puede estudiar la transferencia del canal a distintos valores de $r$, en el dominio de la frecuencia y en el dominio del tiempo. Tales resultados se presentan en la @fig-respuesta
+```{julia}
+#| echo: false
+#| label: fig-respuesta
+#| fig-cap: "Fila 1 r=200m. Fila 2 r=500m. Fila 3 r=800m. Respuesta del canal en el dominio del tiempo (izquierda) y de la frecuencia (derecha) a diferentes posiciones de receptor."
+t1, t2, t3 = t[1], t[end/2 |> Int], t[end]
+
+p1 = plot(τ.*1e6, h(τ, t1) .|> abs, yformatter=(_->""), label="r=$(ceil(xi[1](t1))|>Int)m", ylims=(0, 0.006), xlims=(0, 8), xformatter=(_->""), title="h(τ, t)")
+p3 = plot(τ.*1e6, h(τ, t2) .|> abs, yformatter=(_->""), label="r=$(ceil(xi[1](t2))|>Int)m", ylims=(0, 0.006), xlims=(0, 8), xformatter=(_->""))
+p5 = plot(τ.*1e6, h(τ, t3) .|> abs, yformatter=(_->""), label="r=$(ceil(xi[1](t3))|>Int)m", ylims=(0, 0.006), xlims=(0, 8), xlabel="τ [ms]")
+p2 = plot(f.*1e-9, H.(f, t1) .|> abs, label="r=$(ceil(xi[1](t1))|>Int)m", yformatter=(_->""), ylims=(0, 0.008), xlims=(0.995, 1.005), xformatter=(_->""), title="|H(f, t)|")
+p4 = plot(f.*1e-9, H.(f, t2) .|> abs, label="r=$(ceil(xi[1](t2))|>Int)m", yformatter=(_->""), ylims=(0, 0.008), xlims=(0.995, 1.005), xformatter=(_->""))
+p6 = plot(f.*1e-9, H.(f, t3) .|> abs, label="r=$(ceil(xi[1](t3))|>Int)m", yformatter=(_->""), ylims=(0, 0.008), xlims=(0.995, 1.005), xlabel="f [GHz]")
+
+plot(p1, p2, p3, p4, p5, p6, layout=(3,2), size=(480, 360), margin=2mm, legend=false)
+```
+
+```{julia}
+#| echo: false
+#| label: fig-spread
+#| fig-cap: "Respuesta del canal en el dominio del tiempo (izquierda) y de la frecuencia (derecha) a diferentes posiciones de Rx. Fila 1: r=200 m. Fila 2: r=500m. Fila 3: r=800m"
+t1, t2, t3 = t[1], t[end/2 |> Int], t[end]
+
+Ts(t) = 1/(fc(xi[1](t)))
+
+p1 = plot(τ.*1e6, ifft(H.(f, t1)) .|> abs |> fftshift, yformatter=(_->""), label="h(τ)", ylims=(0, 0.006), xlims=(0, 8), xformatter=(_->""), title="h(τ, t)")
+p2 = plot(τ.*1e6, ifft(H.(f, t2)) .|> abs |> fftshift, yformatter=(_->""), label="h(τ)", ylims=(0, 0.006), xlims=(0, 8), xformatter=(_->""))
+p3 = plot(τ.*1e6, ifft(H.(f, t3)) .|> abs |> fftshift, yformatter=(_->""), label="h(τ)", ylims=(0, 0.006), xlims=(0, 8), xlabel="τ [ms]")
+
+xpos=0.005
+params=(linecolor=:black, label="Ts", markershape=:vline, markercolor=:black, markersize=6)
+plot!(p1, (τi[1](t1).+[0, Ts(t1)]).*1e6, [xpos, xpos]; params...)
+plot!(p2, (τi[1](t2).+[0, Ts(t2)]).*1e6, [xpos, xpos]; params...)
+plot!(p3, (τi[1](t3).+[0, Ts(t3)]).*1e6, [xpos, xpos]; params...)
+params=(linestyle=:dot, linecolor=:black, label=false)
+plot!(p1, (τi[1](t1).+[0, 0]).*1e6, [0, xpos]; params...)
+plot!(p2, (τi[1](t2).+[0, 0]).*1e6, [0, xpos]; params...)
+plot!(p3, (τi[1](t3).+[0, 0]).*1e6, [0, xpos]; params...)
+plot!(p1, (τi[1](t1).+[Ts(t1), Ts(t1)]).*1e6, [0, xpos]; params...)
+plot!(p2, (τi[1](t2).+[Ts(t2), Ts(t2)]).*1e6, [0, xpos]; params...)
+plot!(p3, (τi[1](t3).+[Ts(t3), Ts(t3)]).*1e6, [0, xpos]; params...)
+
+plot(p1, p2, p3, layout=(3,1), size=(480, 360), margin=2mm)
+```
+Si se estudia la respuesta en frecuencia para un determinado valor de $r$, se puede comparar con la diferencia de fase para observar el ancho de banda de coherencia correspondiente a esa posición. 
+```{julia}
+#| echo: false
+#| label: fig-Wc
+#| fig-cap: "Max $=a_1(r)+a_2(r)$, interferencia constructiva. Min $=a_1(r)-a_2(r)$, interferencia destructiva."
+Hs = H.(f, t[end]) .|> abs
+Hmax = (abs(ai[1](t[end]))+abs(ai[2](t[end])))/maximum(Hs)
+Hmin = (abs(ai[1](t[end]))-abs(ai[2](t[end])))/maximum(Hs)
+Hs = Hs/maximum(Hs)
+flims = (0.998, 1.002)
+
+p1 = plot(f.*1e-9, Hs, ylims=(0, 1.1), link=:x, label="|H(f)|", legend=:outerright, ylabel="|H(f)|")
+plot!(p1, f.*1e-9, f.*0 .+Hmax, linecolor=:black, linestyle=:dot, label="Max", link=:x, xlims=flims)
+plot!(p1, f.*1e-9, f.*0 .+Hmin, linecolor=:black, linestyle=:dash, label="Min", link=:x, xlims=flims, xformatter=(_->""))
+
+p2 = plot(f.*1e-9, Δθ.(f, t[end]), xlims=flims, xlabel="f [GHz]", link=:x, legend=false, ylabel="Δθ")
+plot!(p2, [flims[1], flims[2]], [0, 0], linecolor=:black, linestyle=:dash)
+plot(p1, p2, layout=(2,1), size=(480,240))
+```
+
+Alternativamente, se puede fijar una determinada frecuencia de portadora y estudiar la evolución de la respuesta en frecuencia conforme varía la posición del receptor en su recorrido. Tales resultados se presentan en la @fig-respuestax 
+```{julia}
+#| echo: false
+#| label: fig-respuestax
+#| fig-cap: "Evolución de la respuesta del canal a determinadas frecuencias según la posición de Rx."
+f1, f2, f3 = [-10e6, 0, 10e6].+1e9
+
+p1 = plot(xi[1].(t), H.(f1, t) .|> abs, ylims=(0, 0.006), yformatter=(_->""), label="f=$(round(f1*1e-9,digits=2))GHz", xformatter=(_->""), title="|H(f, t)|")
+p2 = plot(xi[1].(t), H.(f2, t) .|> abs, ylims=(0, 0.006), yformatter=(_->""), label="f=$(round(f2*1e-9,digits=2))GHz", xformatter=(_->""))
+p3 = plot(xi[1].(t), H.(f3, t) .|> abs, ylims=(0, 0.006), yformatter=(_->""), label="f=$(round(f3*1e-9,digits=2))GHz", xlabel="r [m]")
+
+plot(p1, p2, p3, layout=(3,1), size=(600, 500), margin=2mm)
+```
+
+```{julia}
+#| echo: false
+#| label: fig-Xc
+#| fig-cap: "Respuesta en frecuencia del canal y diferencia de fase a f_0 = 1 GHz. Se grafican además el valor máximo y mínimo de la respuesta en frecuencia, Max $=a_1(f_0)+a_2(f_0)$ (interferencia constructiva) y Min $=a_1(f_0)-a_2(f_0)$ (interferencia destructiva)."
+t = t[(3*N/4 |> Int):N]
+
+Hs = H.(1e9, t) .|> abs
+Hmax = (ai[1].(t).+ai[2].(t))./maximum(Hs)
+Hmin = (ai[1].(t).-ai[2].(t))./maximum(Hs)
+Hs = Hs./maximum(Hs)
+
+rlims=(720, 800)
+
+p1 = plot(xi[1].(t), Hs, xlims=(700, 800), ylims=(0,1.1), link=:x, label="|H(f)|", legend=:outerright, ylabel="|H(f)|")
+plot!(p1, xi[1].(t), Hmax, linecolor=:black, linestyle=:dot, label="Hmax", link=:x, xlims=rlims)
+plot!(p1, xi[1].(t), Hmin, linecolor=:black, linestyle=:dash, label="Hmax", link=:x, xlims=rlims, xformatter=(_->""))
+
+p2 = plot(xi[1].(t), Δθ.(1e9, t), xlims=rlims, xlabel="r [m]", link=:x, legend=:false, ylabel="Δθ")
+plot!(p2, [rlims[1], rlims[2]], [0, 0], linecolor=:black, linestyle=:dash)
+
+plot(p1, p2, layout=(2,1))
+```

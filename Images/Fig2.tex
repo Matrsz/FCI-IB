@@ -1,8 +1,8 @@
 \begin{center}
     \resizebox{\linewidth}{!}{
-    \begin{circuitikz}
-      \draw (0,0) node[dinantenna,label={above left:Tx}]{} --
-            (\r0,0) node[dinantenna,label={above left:Rx}]{} --
+    \begin{tikzpicture}
+      \draw (0,0)   node[label={above left:Tx}]{} \antenna --
+            (\r0,0) node[label={above left:Rx}]{} \antenna --
             (\d,0);
       \draw[ultra thick] (\d,1.4) -- 
                          (\d,0);
@@ -20,7 +20,7 @@
       \draw[|-|]       (\r0,    -0.4) -- 
                        (\d/2,   -0.4) node[style={fill=white}]{Intervalo de Simulación} --
                        (\d-\r0, -0.4);
-    \end{circuitikz}
+    \end{tikzpicture}
     }
 \end{center}
   

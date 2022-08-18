@@ -1,9 +1,9 @@
-\usepackage{circuitikz}
+\usepackage{tikz}
+\usepackage{fontenc}
 \usepackage{graphicx}
 \usepackage{authblk}
 \usepackage{fancyhdr}
 \usepackage{titling}
-\setmonofont[Scale=0.9]{Courier New}
 
 \lhead{Fundamentos de Comunicaciones Inalámbricas}
 \chead{}
@@ -14,10 +14,12 @@
 
 \pretitle{\fontsize{18bp}{18bp}\selectfont}
 \posttitle{\par\vspace{8bp}}
-\presubtitle{\fontsize{12bp}{12bp}\selectfont}
-\postsubtitle{\par\vspace{8bp}}
 \preauthor{\fontsize{14bp}{14bp}\selectfont}
 \postauthor{\par\vspace{24bp}}
 \predate{}
 \date{}
 \postdate{}
+
+\def\antenna{%
+    -- +(0,0) -- +(0,0.8) + (-0.3,0.8) -- +(0,0.4) -- +(0.3,0.8) +(0,0)
+}

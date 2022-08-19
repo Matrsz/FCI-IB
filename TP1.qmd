@@ -21,13 +21,13 @@ format:
     highlight-style: arrow
     pagestyle: headings
     latex-auto-install: true
-    keep-tex: true
 jupyter: julia-1.7 
 ---
 ```{julia}
 #| echo: false
 #| output: false
-using FFTW
+using Statistics
+using FFTW  
 using Plots, Measures
 pyplot()
 
@@ -36,13 +36,13 @@ c = 3e8
 ```
 ## Introducción
 
-Evaluamos un modelo de canal inalámbrico de dos caminos, definido como un sistema LTV caracterizado por su respuesta al impulso
+Evaluamos un modelo de canal inalámbrico de dos caminos, definido como un sistema lineal variante en el tiempo caracterizado por su respuesta al impulso
 $$
-  h(\tau, t) = \sum_{i=1}^2 a_i(t)\delta\left(\tau - \tau_i(t)\right) 
+  h(\tau, t) = \sum_{i=1}^2 a_i(t)\,\delta\left(\tau - \tau_i(t)\right) 
 $$ {#eq-h}
 Su respuesta en frecuencia se consigue con la transformada de Fourier respecto a la variable $\tau$
 $$
-  H(f, t) = \sum_{i=1}^2 a_i(t)e^{-2\pi f \tau_i(t)}
+  H(f, t) = \sum_{i=1}^2 a_i(t)\,e^{-2\pi f \tau_i(t)}
 $$ {#eq-H}
 
 Estudiamos el caso particular de canal inalámbrico variante en el tiempo presentado en la @fig-canal
@@ -51,38 +51,36 @@ Estudiamos el caso particular de canal inalámbrico variante en el tiempo presen
 \tikzmath{\d = 10; \r0 = 2;}
 ![Canal inalámbrico de 2 caminos conformado por una antena emisora Tx estática, antena receptora Rx móvil, y un reflector.](Images/Fig1.tex){#fig-canal}
 
-El resultado de este canal es desarrollado en @tse_2, resultando en las expresiones
+Este canal es desarrollado en @tse_2 y resulta en
 $$
-\begin{aligned}
-  a_1(t)&=+\frac{|\alpha|}{x_1(t)} &\qquad
-  \tau_1(t)&=\frac{x_1(t)}{c}\\
-  a_2(t)&=-\frac{|\alpha|}{x_2(t)} &\qquad
-  \tau_2(t)&=\frac{x_2(t)}{c}\\
-\end{aligned}
-$$ {#eq-ai}
-En donde $x_1(t)$ y $x_2(t)$ son la distancia de cada camino, y el signo de $a_2$ contempla el salto de fase provocado por la reflexión
+a_1(t)=\frac{|\alpha|}{x_1(t)} \qquad a_2(t)=-\frac{|\alpha|}{x_2(t)}
+$$ {#eq-a1}
+$$
+\tau_1(t)=\frac{x_1(t)}{c} \qquad \tau_2(t)=\frac{x_2(t)}{c}
+$$ {#eq-a2}
+En donde $x_1(t)$ y $x_2(t)$ son la distancia de cada camino, y el signo de $a_2$ contempla el salto de fase por reflexión
 $$
   x_1(t) = r_0+vt \qquad x_2(t)=2d-r_0-vt
 $$ {#eq-xi}
 
 Para estudiar la interferencia resulta necesario expresar la diferencia de fase entre los dos caminos
 $$
-  \Delta\theta = 2\pi f \left[\tau_2(t)-\tau_1(t)\right]+\pi
+  \Delta\theta = 2\pi f \tau_2(t)+\pi-2\pi f \tau_1(t)
 $$ {#eq-fase}
 Desarrollando la expresión se llega al resultado
 $$
-\Delta\theta = \frac{4\pi}{c}f\left(d-r\right)+\pi
+  \Delta\theta = \frac{4\pi}{c} f \left(d-r\right)+\pi
 $$ {#eq-fase2}
 
 La expresión resulta en interferencia constructiva cuando $\Delta\theta$ es un múltiplo par de $\pi$, y en interferencia destructiva cuando este es un múltiplo impar de $\pi$
 
 Viendo la @eq-fase2 como función de $r$ a un $f$ fijo, Se define la _longitud de coherencia_ como la distancia entre un máximo y un mínimo de interferencia
 $$
-  \Delta x_c = \frac{c}{4f}
+  X_c = \frac{c}{4f}
 $$ {#eq-xc}
 Asimimsmo, vista como función de $f$ a un $r$ fijo, se define el _ancho de banda de coherencia_ de la misma forma
 $$
-  \Delta f_c = \frac{c}{2(d-r)}
+  W_c = \frac{c}{4(d-r)}
 $$ {#eq-fc}
 
 ## Implementación
@@ -100,50 +98,43 @@ H(f,t) = ai[1](t)*exp(-im*2pi*f*ti[1](t))+
          ai[2](t)*exp(-im*2pi*f*ti[2](t))
 ```
 
-Para simular el caso particular descrito en la @fig-canal, especificamos las expresiones de $a_i$ y $\tau_i$ de la @eq-ai como vectores de funciones
+Para simular el caso particular descrito en la @fig-canal, especificamos las expresiones de $a_i$ y $\tau_i$ de @eq-a1 y @eq-a2 como vectores de funciones
 ```{julia} 
 #| output: false
 ai = [t -> 1/xi[1](t), t -> -1/xi[2](t)]
-
-ti = [t -> xi[1](t)/c, t -> xi[2](t)/c]
+ti = [t -> xi[1](t)/c, t ->  xi[2](t)/c]
 ```
 Igualmente definimos los $x_i$ descritos en la @eq-xi
 ```{julia}
 #| output: false
-xi = [t -> r0+v*t, t -> 2*d-r0-v*t]
+r(t) = r0+v*t
+xi   = [t -> r(t), t -> 2*d-r(t)]
 ```
 
 Implementamos también el cálculo de la diferencia de fase, @eq-fase, tal que retorne valores $\Delta\theta\in\left[-\pi, \pi\right]$
 ```{julia}
 #| output: false
 function dif_fase(f, t)
-  dif_fase = 2pi*f*(ti[2](t)-ti[1](t))+pi
-  return mod(dif_fase+pi, 2pi)-pi
+  dif = 2pi*f*(ti[2](t)-ti[1](t))
+  return mod(dif, 2pi)-pi
 end
 ```
-
-```{julia}
-#| output: false
-xc(f) = c/(4*f)
-fc(r) = c/(2*(d-r))
-```
-
 ## Simulación
 
-Vamos a simular la respuesta del canal en un ancho de banda de 10 MHz respecto a una frecuencia central $f_0$ de 1 GHz. El dominio de la frecuencia es discretizado en 2048 puntos, el vector de tiempos $\tau$ correspondiente se obtiene con la función `fftfreq`.
+Vamos a simular la respuesta del canal en un ancho de banda de 10 MHz respecto a una frecuencia central $f_0$ de 1 GHz, discretizado en 2048 puntos.
 
 ```{julia}
 #| output: false
 f0 = 1e9
 N  = 2048
-f  = range(-10e6, 10e6, N).+f0
+f  = range(-5e6, 5e6, N).+f0
 dt = 1/(f[2]-f[1])
 t´  = fftfreq(N, dt) |> fftshift
 ```
 
 Se fija una distancia de la emisora al reflector de 1 km, y una posición inicial de la receptora de de 200 m. Se estudian posiciones de la antena receptora desde $r=r_0$ hasta $r=d-r_0$, tal como indica la @fig-rango.
 
-![Intervalo de simulación del canal, se evalúan posiciones de la receptora $r_{\text{Rx}}\in [r_0,\, d-r_0]$.](Images/Fig2.tex){#fig-rango}
+![Intervalo de simulación del canal, se evalúan posiciones de la receptora $r(t) \in [r_0,\, d-r_0]$.](Images/Fig2.tex){#fig-rango}
 
 Se considera una velocidad de la receptora de 60 km/h y se eligen tiempos $t$ tal que las posiciones de la receptora estén en el intervalo de evaluación. 
 ```{julia}
@@ -170,7 +161,7 @@ p6 = plot(f.*1e-9, H.(f, t3) .|> abs, label="r=$(ceil(xi[1](t3))|>Int)m", yforma
 plot(p1, p2, p3, p4, p5, p6, layout=(3,2), size=(480, 360), margin=2mm, legend=false)
 ```
 
-```{julia}
+<!-- ```{julia}
 #| output: false
 #| echo: false
 #| label: fig-spread
@@ -197,7 +188,7 @@ plot!(p2, (ti[1](t2).+[Ts(t2), Ts(t2)]).*1e6, [0, xpos]; params...)
 plot!(p3, (ti[1](t3).+[Ts(t3), Ts(t3)]).*1e6, [0, xpos]; params...)
 
 plot(p1, p2, p3, layout=(3,1), size=(480, 360), margin=2mm)
-```
+``` -->
 Si se estudia la respuesta en frecuencia para un determinado valor de $r$, se puede comparar con la diferencia de fase para observar el ancho de banda de coherencia correspondiente a esa posición. 
 ```{julia}
 #| echo: false
@@ -219,38 +210,67 @@ plot(p1, p2, layout=(2,1), size=(480,240))
 ```
 
 Alternativamente, se puede fijar una determinada frecuencia de portadora y estudiar la evolución de la respuesta en frecuencia conforme varía la posición del receptor en su recorrido. Tales resultados se presentan en la @fig-respuestax 
+
+```{julia}
+t2 = range(d-1.51r0, d-1.5r0, N)./v
+```
 ```{julia}
 #| echo: false
 #| label: fig-respuestax
 #| fig-cap: "Evolución de la respuesta del canal a determinadas frecuencias según la posición de Rx."
-f1, f2, f3 = [-10e6, 0, 10e6].+1e9
+f1, f2, f3 = (-10e6, 0, 10e6).+1e9
 
-p1 = plot(xi[1].(t), H.(f1, t) .|> abs, ylims=(0, 0.006), yformatter=(_->""), label="f=$(round(f1*1e-9,digits=2))GHz", xformatter=(_->""), title="|H(f, t)|")
-p2 = plot(xi[1].(t), H.(f2, t) .|> abs, ylims=(0, 0.006), yformatter=(_->""), label="f=$(round(f2*1e-9,digits=2))GHz", xformatter=(_->""))
-p3 = plot(xi[1].(t), H.(f3, t) .|> abs, ylims=(0, 0.006), yformatter=(_->""), label="f=$(round(f3*1e-9,digits=2))GHz", xlabel="r [m]")
+p1 = plot(r.(t2), H.(f1, t2) .|> abs, label="f=$(round(f1*1e-9,digits=3))GHz", link=:x, xformatter=(_->""), title="|H(f, t)|")
+p3 = plot(r.(t2), H.(f3, t2) .|> abs, label="f=$(round(f3*1e-9,digits=3))GHz", link=:x, xlabel="r [m]")
 
-plot(p1, p2, p3, layout=(3,1), size=(600, 500), margin=2mm)
+plot(p1, p3, layout=(2,1), size=(480,240))
 ```
 
 ```{julia}
 #| echo: false
 #| label: fig-Xc
 #| fig-cap: "Máximo $=a_1(f_0)+a_2(f_0)$, interferencia constructiva. Mínimo $=a_1(f_0)-a_2(f_0)$, interferencia destructiva."
-t = t[(3*N/4 |> Int):N]
+t2 = range(d-1.505r0, d-1.5r0, N)./v
 
-Hs = H.(1e9, t) .|> abs
-Hmax = (ai[1].(t).+ai[2].(t))./maximum(Hs)
-Hmin = (ai[1].(t).-ai[2].(t))./maximum(Hs)
+Hs = H.(1e9, t2) .|> abs
+Hmax = (ai[1].(t2).+ai[2].(t2))./maximum(Hs)
+Hmin = (ai[1].(t2).-ai[2].(t2))./maximum(Hs)
 Hs = Hs./maximum(Hs)
 
-rlims=(720, 800)
+p1 = plot(r.(t2), Hs, ylims=(0,1.1), link=:x, label="|H(f)|", legend=:outerright, ylabel="|H(f)|")
+plot!(p1, r.(t2), Hmax, linecolor=:black, linestyle=:dot, label="Hmax", link=:x)
+plot!(p1, r.(t2), Hmin, linecolor=:black, linestyle=:dash, label="Hmax", link=:x, xformatter=(_->""))
 
-p1 = plot(xi[1].(t), Hs, xlims=(700, 800), ylims=(0,1.1), link=:x, label="|H(f)|", legend=:outerright, ylabel="|H(f)|")
-plot!(p1, xi[1].(t), Hmax, linecolor=:black, linestyle=:dot, label="Hmax", link=:x, xlims=rlims)
-plot!(p1, xi[1].(t), Hmin, linecolor=:black, linestyle=:dash, label="Hmax", link=:x, xlims=rlims, xformatter=(_->""))
+p2 = plot(r.(t2), dif_fase.(1e9, t2), xlabel="r [m]", link=:x, legend=:false, ylabel="dif_fase")
+plot!(p2, [r(t2[1]), r(t2[end])], [0, 0], linecolor=:black, linestyle=:dash)
 
-p2 = plot(xi[1].(t), dif_fase.(1e9, t), xlims=rlims, xlabel="r [m]", link=:x, legend=:false, ylabel="dif_fase")
-plot!(p2, [rlims[1], rlims[2]], [0, 0], linecolor=:black, linestyle=:dash)
+t2 = range(d-1.7r0, d-1.5r0, N)./v
 
+plot(p1, p2, layout=(2,1), size=(480,240))
+```
+
+```{julia}
+Wc(x) = c/(4*(d-x))
+Xc(f) = c/(4*f)
+
+function argmaxima(x)
+  idx = []
+  for i in 2:length(x)-1
+    x[i-1]<x[i] && x[i]>x[i+1] && push!(idx, i)
+  end
+  return idx 
+end
+
+H_abs(f,t) = H(f,t) .|> abs
+
+period(t, x) = t[argmaxima(x)] |> diff |> mean
+
+Wc_emp = [period(f, H_abs.(f, ti))/2 for ti in t]
+Tc_emp = [period(t2, H_abs.(fi, t2))/2 for fi in f]
+
+p1 = plot(r.(t), Wc, xlabel="x", ylabel="Wc", legend=false)
+plot!(p1, r.(t), Wc_emp, linestyle=:dash, legend=false)
+p2 = plot(f, Xc, xlabel="f", ylabel="Xc", legend=false)
+plot!(p2, f, Tc_emp.*v, legend=false)
 plot(p1, p2, layout=(2,1))
 ```

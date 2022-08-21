@@ -128,10 +128,10 @@ t = range(0, d-2r0, N)./v
 
 Ya que $H(f,t)$ es una función de 2 dimensiones existen dos formas de realizar la simulación, que requieren fijar uno de los parámetros.
 
-::: {#fig-analisis layout="[[1, 1]]" layout-valign="top"}
-![Función $H(f, t_i)$ variando $t_i$.](Images/Fig3.tex){#fig-varf}
+::: {#fig-analisis layout="[[1, 1]]" layout-valign="bottom"}
+![Función $H(f, t_i)$ variando $t_i$.](Images/Fig4.tex){#fig-varT}
 
-![Función $H(f_i, t)$ variando $f_i$.](Images/Fig4.tex){#fig-vart}
+![Función $H(f_i, t)$ variando $f_i$.](Images/Fig3.tex){#fig-varF}
 
 Distintas formas de simular e interpretar $H(f, t)$, visualizadas en el plano tiempo-frecuencia.
 :::
@@ -142,7 +142,7 @@ Mientras que $H(f,t)$ es la expresión general de un canal LTV, en la @fig-canal
 
 ## Resultados
 
-Al realizar la simulación correspondiente a la @fig-varf, se obtienen las respuestas $H(f, r_i)$ presentadas en la @fig-respuesta. Se observa que el ancho de banda de coherencia incrementa cuando la antena receptora se acerca al reflector
+Al realizar la simulación correspondiente a la @fig-varT, se obtienen las respuestas $H(f, r_i)$ presentadas en la @fig-respuesta. Se observa que el ancho de banda de coherencia incrementa cuando la antena receptora se acerca al reflector
 ```{julia}
 #| echo: false
 #| label: fig-respuesta

@@ -4,14 +4,15 @@ subtitle: Fundamentos de Comunicaciones Inalámbricas
 author: Matías Roqueta
 institute: Instituto Balseiro
 lang: es
-bibliography: inalambricas.bib
+bibliography: Tex/TP1.bib
 biblio-style: ieee
+highlight-style: arrow
 format: 
   pdf:
     fontfamily: libertinus
     pdf-engine: lualatex
-    include-in-header: headers.tex
-    include-before-body: tikzsetup.tex
+    include-in-header: Tex/headers.tex
+    include-before-body: Tex/tikzsetup.tex
     cite-method: biblatex
     classoption: twocolumn
     geometry:
@@ -19,11 +20,8 @@ format:
       - bottom=20mm
       - left=12mm
       - right=12mm
-    highlight-style: arrow
     latex-auto-install: true
 jupyter: julia-1.7 
-execute:
-  freeze: true 
 ---
 ```{julia}
 #| echo: false

@@ -1,0 +1,14 @@
+\begin{tikzpicture}
+    \draw[->, thick] (0,0) -- (0,\W) node[label={left:  f}]{};
+    \draw[->, thick] (0,0) -- (\W,0) node[label={below: t}]{};
+    
+    \draw[|-|, dashed] (0,    \fA*\W) node[label={left: $f_1$}]{} --
+                       (\W/2, \fA*\W) node[style={fill=white}]{$h(t, f_1)$} --
+                       (\W,   \fA*\W);
+    \draw[|-|, dashed] (0,    \fB*\W) node[label={left: $f_1$}]{} --
+                       (\W/2, \fB*\W) node[style={fill=white}]{$h(t, f_1)$} --
+                       (\W,   \fB*\W);
+    \draw[|-|, dashed] (0,    \fC*\W) node[label={left: $f_1$}]{} --
+                       (\W/2, \fC*\W) node[style={fill=white}]{$h(t, f_1)$} --
+                       (\W,   \fC*\W);
+\end{tikzpicture}

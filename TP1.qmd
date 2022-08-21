@@ -1,5 +1,5 @@
 ---
-title: TP N°1
+title: Fundamentos de Comunicaciones Inalámbricas - TP N°1
 subtitle: Fundamentos de Comunicaciones Inalámbricas
 author: Matías Roqueta
 institute: Instituto Balseiro
@@ -11,6 +11,7 @@ format:
     fontfamily: libertinus
     pdf-engine: lualatex
     include-in-header: headers.tex
+    include-before-body: tikzsetup.tex
     cite-method: biblatex
     classoption: twocolumn
     geometry:
@@ -28,7 +29,7 @@ jupyter: julia-1.7
 #| output: false
 using Statistics
 using FFTW  
-using Plots, Measures
+using Plots
 pyplot()
 
 δ(t´)=[abs(i)==minimum(abs.(t´)) ? 1 : 0 for i in t´]
@@ -47,8 +48,6 @@ $$ {#eq-H}
 
 Estudiamos el caso particular de canal inalámbrico variante en el tiempo presentado en la @fig-canal
 
-\usetikzlibrary{math}
-\tikzmath{\d = 10; \r0 = 2;}
 ![Canal inalámbrico de 2 caminos conformado por una antena emisora Tx estática, antena receptora Rx móvil, y un reflector.](Images/Fig1.tex){#fig-canal}
 
 Este canal es desarrollado en @tse_2 y resulta en
@@ -125,11 +124,10 @@ Vamos a simular la respuesta del canal en un ancho de banda de 10 MHz respecto a
 
 ```{julia}
 #| output: false
-f0 = 1e9
-N  = 2048
-f  = range(-5e6, 5e6, N).+f0
+f0 = 1e9; BW = 10e6; N = 2048
+f  = f0.+range(-BW/2, BW/2, N)
 dt = 1/(f[2]-f[1])
-t´  = fftfreq(N, dt) |> fftshift
+t´ = fftfreq(N, dt) |> fftshift
 ```
 
 Se fija una distancia de la emisora al reflector de 1 km, y una posición inicial de la receptora de de 200 m. Se estudian posiciones de la antena receptora desde $r=r_0$ hasta $r=d-r_0$, tal como indica la @fig-rango.
@@ -139,56 +137,42 @@ Se fija una distancia de la emisora al reflector de 1 km, y una posición inicia
 Se considera una velocidad de la receptora de 60 km/h y se eligen tiempos $t$ tal que las posiciones de la receptora estén en el intervalo de evaluación. 
 ```{julia}
 #| output: false
-d  = 1000
-r0 = 200
-v  = 60*1000/3600
-t  = range(0, d-2r0, N)./v
+d = 1000; r0 = 200; v = 60*1000/3600
+t = range(0, d-2r0, N)./v
 ```
 Se puede estudiar la transferencia del canal a distintos valores de $r$, en el dominio de la frecuencia y en el dominio del tiempo. Tales resultados se presentan en la @fig-respuesta
 ```{julia}
 #| echo: false
 #| label: fig-respuesta
-#| fig-cap: "Fila 1: r = 200m. Fila 2: r = 500m. Fila 3: r = 800m. Respuesta del canal en el dominio del tiempo (izquierda) y de la frecuencia (derecha) a diferentes posiciones de receptor."
+#| fig-cap: "Fila 1: r = 200m. Fila 2: r = 500m. Fila 3: r = 800m. Respuesta del canal en el dominio de la frecuencia a diferentes posiciones de receptor."
+H_abs(f, t) = H(f, t) |> abs
 t1, t2, t3 = t[1], t[end/2 |> Int], t[end]
+Hmax = maximum(H_abs.(f, t1))
 
-p1 = plot(t´.*1e6, h(t´, t1) .|> abs, yformatter=(_->""), label="r=$(ceil(xi[1](t1))|>Int)m", ylims=(0, 0.006), xlims=(0, 8), xformatter=(_->""), title="h(t´, t)")
-p3 = plot(t´.*1e6, h(t´, t2) .|> abs, yformatter=(_->""), label="r=$(ceil(xi[1](t2))|>Int)m", ylims=(0, 0.006), xlims=(0, 8), xformatter=(_->""))
-p5 = plot(t´.*1e6, h(t´, t3) .|> abs, yformatter=(_->""), label="r=$(ceil(xi[1](t3))|>Int)m", ylims=(0, 0.006), xlims=(0, 8), xlabel="t´ [ms]")
-p2 = plot(f.*1e-9, H.(f, t1) .|> abs, label="r=$(ceil(xi[1](t1))|>Int)m", yformatter=(_->""), ylims=(0, 0.008), xlims=(0.995, 1.005), xformatter=(_->""), title="|H(f, t)|")
-p4 = plot(f.*1e-9, H.(f, t2) .|> abs, label="r=$(ceil(xi[1](t2))|>Int)m", yformatter=(_->""), ylims=(0, 0.008), xlims=(0.995, 1.005), xformatter=(_->""))
-p6 = plot(f.*1e-9, H.(f, t3) .|> abs, label="r=$(ceil(xi[1](t3))|>Int)m", yformatter=(_->""), ylims=(0, 0.008), xlims=(0.995, 1.005), xlabel="f [GHz]")
+params =(ylims=(0, 1), xlims=(0.995, 1.005), legend=false)
+p1 = plot(f.*1e-9, H_abs.(f, t1)./Hmax, ylabel="|H(f, $(r(t1) |> ceil |>Int)m|)", xformatter=(_->""); params...)
+p2 = plot(f.*1e-9, H_abs.(f, t2)./Hmax, ylabel="|H(f, $(r(t2) |> ceil |>Int)m|)", xformatter=(_->""); params...)
+p3 = plot(f.*1e-9, H_abs.(f, t3)./Hmax, ylabel="|H(f, $(r(t3) |> ceil |>Int)m|)", xlabel="f [GHz]"; params...)
 
-plot(p1, p2, p3, p4, p5, p6, layout=(3,2), size=(480, 360), margin=2mm, legend=false)
+plot(p1, p2, p3, layout=(3,1), size=(480, 360))
 ```
 
-<!-- ```{julia}
-#| output: false
+```{julia}
 #| echo: false
 #| label: fig-spread
-#| fig-cap: "Respuesta del canal en el dominio del tiempo (izquierda) y de la frecuencia (derecha) a diferentes posiciones de Rx. Fila 1: r=200 m. Fila 2: r=500m. Fila 3: r=800m"
+#| fig-cap: "Fila 1: r = 200m. Fila 2: r = 500m. Fila 3: r = 800m. Respuesta del canal en el dominio del tiempo a diferentes posiciones de receptor."
 t1, t2, t3 = t[1], t[end/2 |> Int], t[end]
+hmax = maximum(h(t´, t1))
 
-Ts(t) = 1/(fc(xi[1](t)))
+params = (xlims=(0,8), ylims=(-0, 1), legend=false)
 
-p1 = plot(t´.*1e6, ifft(H.(f, t1)) .|> abs |> fftshift, yformatter=(_->""), label="h(t´)", ylims=(0, 0.006), xlims=(0, 8), xformatter=(_->""), title="h(t´, t)")
-p2 = plot(t´.*1e6, ifft(H.(f, t2)) .|> abs |> fftshift, yformatter=(_->""), label="h(t´)", ylims=(0, 0.006), xlims=(0, 8), xformatter=(_->""))
-p3 = plot(t´.*1e6, ifft(H.(f, t3)) .|> abs |> fftshift, yformatter=(_->""), label="h(t´)", ylims=(0, 0.006), xlims=(0, 8), xlabel="t´ [ms]")
+p1 = plot(t´.*1e6, h(t´, t1)./ hmax .|> abs, ylabel="h(τ, $(r(t1) |> ceil |> Int)m)", xformatter=(_->""); params...)
+p2 = plot(t´.*1e6, h(t´, t2)./ hmax .|> abs, ylabel="h(τ, $(r(t2) |> ceil |> Int)m)", xformatter=(_->""); params...)
+p3 = plot(t´.*1e6, h(t´, t3)./ hmax .|> abs, ylabel="h(τ, $(r(t3) |> ceil |> Int)m)", xlabel="τ [ms]"; params...)
 
-xpos=0.005
-params=(linecolor=:black, label="Ts", markershape=:vline, markercolor=:black, edgecolor=:black, markersize=6)
-plot!(p1, (ti[1](t1).+[0, Ts(t1)]).*1e6, [xpos, xpos]; params...)
-plot!(p2, (ti[1](t2).+[0, Ts(t2)]).*1e6, [xpos, xpos]; params...)
-plot!(p3, (ti[1](t3).+[0, Ts(t3)]).*1e6, [xpos, xpos]; params...)
-params=(linestyle=:dot, linecolor=:black, label=false)
-plot!(p1, (ti[1](t1).+[0, 0]).*1e6, [0, xpos]; params...)
-plot!(p2, (ti[1](t2).+[0, 0]).*1e6, [0, xpos]; params...)
-plot!(p3, (ti[1](t3).+[0, 0]).*1e6, [0, xpos]; params...)
-plot!(p1, (ti[1](t1).+[Ts(t1), Ts(t1)]).*1e6, [0, xpos]; params...)
-plot!(p2, (ti[1](t2).+[Ts(t2), Ts(t2)]).*1e6, [0, xpos]; params...)
-plot!(p3, (ti[1](t3).+[Ts(t3), Ts(t3)]).*1e6, [0, xpos]; params...)
+plot(p1, p2, p3, layout=(3,1), size=(480, 360))
+```
 
-plot(p1, p2, p3, layout=(3,1), size=(480, 360), margin=2mm)
-``` -->
 Si se estudia la respuesta en frecuencia para un determinado valor de $r$, se puede comparar con la diferencia de fase para observar el ancho de banda de coherencia correspondiente a esa posición. 
 ```{julia}
 #| echo: false
@@ -204,7 +188,7 @@ p1 = plot(f.*1e-9, Hs, ylims=(0, 1.1), link=:x, label="|H(f)|", legend=:outerrig
 plot!(p1, f.*1e-9, f.*0 .+Hmax, linecolor=:black, linestyle=:dot, label="Max", link=:x, xlims=flims)
 plot!(p1, f.*1e-9, f.*0 .+Hmin, linecolor=:black, linestyle=:dash, label="Min", link=:x, xlims=flims, xformatter=(_->""))
 
-p2 = plot(f.*1e-9, dif_fase.(f, t[end]), xlims=flims, xlabel="f [GHz]", link=:x, legend=false, ylabel="dif_fase")
+p2 = plot(f.*1e-9, dif_fase.(f, t[end]), xlims=flims, xlabel="f [GHz]", link=:x, legend=false, ylabel="Δθ")
 plot!(p2, [flims[1], flims[2]], [0, 0], linecolor=:black, linestyle=:dash)
 plot(p1, p2, layout=(2,1), size=(480,240))
 ```
@@ -212,27 +196,29 @@ plot(p1, p2, layout=(2,1), size=(480,240))
 Alternativamente, se puede fijar una determinada frecuencia de portadora y estudiar la evolución de la respuesta en frecuencia conforme varía la posición del receptor en su recorrido. Tales resultados se presentan en la @fig-respuestax 
 
 ```{julia}
-t2 = range(d-1.51r0, d-1.5r0, N)./v
+t2 = range(d-2.01r0, d-2r0, N)./v
 ```
 ```{julia}
 #| echo: false
 #| label: fig-respuestax
 #| fig-cap: "Evolución de la respuesta del canal a determinadas frecuencias según la posición de Rx."
-f1, f2, f3 = (-10e6, 0, 10e6).+1e9
+f1, f2, f3 = (-100e6, 0, 100e6).+1e9
+Hmax = maximum(H_abs.(f1, t2))
 
-p1 = plot(r.(t2), H.(f1, t2) .|> abs, label="f=$(round(f1*1e-9,digits=3))GHz", link=:x, xformatter=(_->""), title="|H(f, t)|")
-p3 = plot(r.(t2), H.(f3, t2) .|> abs, label="f=$(round(f3*1e-9,digits=3))GHz", link=:x, xlabel="r [m]")
+params = (ylims=(0,1), legend=false)
+p1 = plot(r.(t2), H_abs.(f1, t2)./Hmax, ylabel="|H($(round(f1*1e-9,digits=2)) GHz, r)|", xformatter=(_->""); params...)
+p3 = plot(r.(t2), H_abs.(f3, t2)./Hmax, ylabel="|H($(round(f3*1e-9,digits=2)) GHz, r)|", xlabel="r [m]"; params...)
 
-plot(p1, p3, layout=(2,1), size=(480,240))
+plot(p1, p3, layout=(2,1), size=(480,300))
 ```
 
 ```{julia}
 #| echo: false
 #| label: fig-Xc
 #| fig-cap: "Máximo $=a_1(f_0)+a_2(f_0)$, interferencia constructiva. Mínimo $=a_1(f_0)-a_2(f_0)$, interferencia destructiva."
-t2 = range(d-1.505r0, d-1.5r0, N)./v
+t2 = range(d-2.005r0, d-2r0, N)./v
 
-Hs = H.(1e9, t2) .|> abs
+Hs = H_abs.(1e9, t2)
 Hmax = (ai[1].(t2).+ai[2].(t2))./maximum(Hs)
 Hmin = (ai[1].(t2).-ai[2].(t2))./maximum(Hs)
 Hs = Hs./maximum(Hs)
@@ -241,7 +227,7 @@ p1 = plot(r.(t2), Hs, ylims=(0,1.1), link=:x, label="|H(f)|", legend=:outerright
 plot!(p1, r.(t2), Hmax, linecolor=:black, linestyle=:dot, label="Hmax", link=:x)
 plot!(p1, r.(t2), Hmin, linecolor=:black, linestyle=:dash, label="Hmax", link=:x, xformatter=(_->""))
 
-p2 = plot(r.(t2), dif_fase.(1e9, t2), xlabel="r [m]", link=:x, legend=:false, ylabel="dif_fase")
+p2 = plot(r.(t2), dif_fase.(1e9, t2), xlabel="r [m]", link=:x, legend=:false, ylabel="Δθ")
 plot!(p2, [r(t2[1]), r(t2[end])], [0, 0], linecolor=:black, linestyle=:dash)
 
 t2 = range(d-1.7r0, d-1.5r0, N)./v
@@ -250,9 +236,8 @@ plot(p1, p2, layout=(2,1), size=(480,240))
 ```
 
 ```{julia}
-Wc(x) = c/(4*(d-x))
-Xc(f) = c/(4*f)
-
+#| echo: false
+#| output: false
 function argmaxima(x)
   idx = []
   for i in 2:length(x)-1
@@ -260,13 +245,17 @@ function argmaxima(x)
   end
   return idx 
 end
+```
+```{julia}
+Wc(x) = c/(4*(d-x))
+Xc(f) = c/(4*f)
 
 H_abs(f,t) = H(f,t) .|> abs
 
-period(t, x) = t[argmaxima(x)] |> diff |> mean
+T_emp(t, x) = t[argmaxima(x)] |> diff |> mean
 
-Wc_emp = [period(f, H_abs.(f, ti))/2 for ti in t]
-Tc_emp = [period(t2, H_abs.(fi, t2))/2 for fi in f]
+Wc_emp = [T_emp(f, H_abs.(f, ti))/2 for ti in t]
+Tc_emp = [T_emp(t2, H_abs.(fi, t2))/2 for fi in f]
 
 p1 = plot(r.(t), Wc, xlabel="x", ylabel="Wc", legend=false)
 plot!(p1, r.(t), Wc_emp, linestyle=:dash, legend=false)

@@ -20,9 +20,10 @@ format:
       - left=12mm
       - right=12mm
     highlight-style: arrow
-    pagestyle: headings
     latex-auto-install: true
 jupyter: julia-1.7 
+execute:
+  freeze: true 
 ---
 ```{julia}
 #| echo: false
@@ -48,7 +49,7 @@ $$ {#eq-H}
 
 Estudiamos el caso particular de canal inalámbrico variante en el tiempo presentado en la @fig-canal
 
-![Canal inalámbrico de 2 caminos conformado por una antena emisora Tx estática, antena receptora Rx móvil, y un reflector.](Images/Fig1.tex){#fig-canal}
+![Canal inalámbrico de 2 caminos conformado por una antena emisora Tx estática, antena receptora Rx móvil con velocidad constante, y un reflector.](Images/Fig1.tex){#fig-canal}
 
 Este canal es desarrollado en @tse_2 y resulta en
 $$
@@ -62,25 +63,18 @@ $$
   x_1(t) = r_0+vt \qquad x_2(t)=2d-r_0-vt
 $$ {#eq-xi}
 
-Para estudiar la interferencia resulta necesario expresar la diferencia de fase entre los dos caminos
+Para estudiar la interferencia resulta necesario expresar la diferencia de fase entre los dos caminos. La expresión resultará en interferencia constructiva cuando $\Delta\theta$ es un múltiplo par de $\pi$, y en interferencia destructiva cuando este es un múltiplo impar de $\pi$
 $$
   \Delta\theta = 2\pi f \tau_2(t)+\pi-2\pi f \tau_1(t)
 $$ {#eq-fase}
-Desarrollando la expresión se llega al resultado
+Desarrollando la expresión para el canal de la @fig-canal se llega al resultado
 $$
   \Delta\theta = \frac{4\pi}{c} f \left(d-r\right)+\pi
 $$ {#eq-fase2}
 
-La expresión resulta en interferencia constructiva cuando $\Delta\theta$ es un múltiplo par de $\pi$, y en interferencia destructiva cuando este es un múltiplo impar de $\pi$
+Vista la @eq-fase2 como función de $r$, se define la _longitud de coherencia_ $X_C$ como la distancia entre un máximo y un mínimo de interferencia.
 
-Viendo la @eq-fase2 como función de $r$ a un $f$ fijo, Se define la _longitud de coherencia_ como la distancia entre un máximo y un mínimo de interferencia
-$$
-  X_c = \frac{c}{4f}
-$$ {#eq-xc}
-Asimimsmo, vista como función de $f$ a un $r$ fijo, se define el _ancho de banda de coherencia_ de la misma forma
-$$
-  W_c = \frac{c}{4(d-r)}
-$$ {#eq-fc}
+Asimismo, vista como función de $f$, se define el _ancho de banda de coherencia_ $W_C$ de la misma forma.
 
 ## Implementación
 
@@ -109,15 +103,6 @@ Igualmente definimos los $x_i$ descritos en la @eq-xi
 r(t) = r0+v*t
 xi   = [t -> r(t), t -> 2*d-r(t)]
 ```
-
-Implementamos también el cálculo de la diferencia de fase, @eq-fase, tal que retorne valores $\Delta\theta\in\left[-\pi, \pi\right]$
-```{julia}
-#| output: false
-function dif_fase(f, t)
-  dif = 2pi*f*(ti[2](t)-ti[1](t))
-  return mod(dif, 2pi)-pi
-end
-```
 ## Simulación
 
 Vamos a simular la respuesta del canal en un ancho de banda de 10 MHz respecto a una frecuencia central $f_0$ de 1 GHz, discretizado en 2048 puntos.
@@ -140,40 +125,67 @@ Se considera una velocidad de la receptora de 60 km/h y se eligen tiempos $t$ ta
 d = 1000; r0 = 200; v = 60*1000/3600
 t = range(0, d-2r0, N)./v
 ```
-Se puede estudiar la transferencia del canal a distintos valores de $r$, en el dominio de la frecuencia y en el dominio del tiempo. Tales resultados se presentan en la @fig-respuesta
+
+Ya que $H(f,t)$ es una función de 2 dimensiones existen dos formas de realizar la simulación, que requieren fijar uno de los parámetros.
+
+::: {#fig-analisis layout="[[1, 1]]" layout-valign="top"}
+![Función $H(f, t_i)$ variando $t_i$.](Images/Fig3.tex){#fig-varf}
+
+![Función $H(f_i, t)$ variando $f_i$.](Images/Fig4.tex){#fig-vart}
+
+Distintas formas de simular e interpretar $H(f, t)$, visualizadas en el plano tiempo-frecuencia.
+:::
+
+Fijar $t_i$ retorna una respuesta en frecuencia del canal intsantántea $H(f, t_i)$, mientras que fijar $f_i$ retorna la evolución temporal de la transferencia del canal en esa frecuencia.
+
+Mientras que $H(f,t)$ es la expresión general de un canal LTV, en la @fig-canal la distancia $r(t)$ caracteriza la respuesta del canal. Los resultados se presentan en función de la distancia.
+
+## Resultados
+
+Al realizar la simulación correspondiente a la @fig-varf, se obtienen las respuestas $H(f, r_i)$ presentadas en la @fig-respuesta. Se observa que el ancho de banda de coherencia incrementa cuando la antena receptora se acerca al reflector
 ```{julia}
 #| echo: false
 #| label: fig-respuesta
-#| fig-cap: "Fila 1: r = 200m. Fila 2: r = 500m. Fila 3: r = 800m. Respuesta del canal en el dominio de la frecuencia a diferentes posiciones de receptor."
+#| fig-cap: "Fila 1: r = 200m. Fila 2: r = 500m. Fila 3: r = 800m."
 H_abs(f, t) = H(f, t) |> abs
 t1, t2, t3 = t[1], t[end/2 |> Int], t[end]
 Hmax = maximum(H_abs.(f, t1))
 
 params =(ylims=(0, 1), xlims=(0.995, 1.005), legend=false)
-p1 = plot(f.*1e-9, H_abs.(f, t1)./Hmax, ylabel="|H(f, $(r(t1) |> ceil |>Int)m|)", xformatter=(_->""); params...)
-p2 = plot(f.*1e-9, H_abs.(f, t2)./Hmax, ylabel="|H(f, $(r(t2) |> ceil |>Int)m|)", xformatter=(_->""); params...)
-p3 = plot(f.*1e-9, H_abs.(f, t3)./Hmax, ylabel="|H(f, $(r(t3) |> ceil |>Int)m|)", xlabel="f [GHz]"; params...)
+p1 = plot(f.*1e-9, H_abs.(f, t1)./Hmax, ylabel="|H(f, r1)|", xformatter=(_->""); params...)
+p2 = plot(f.*1e-9, H_abs.(f, t2)./Hmax, ylabel="|H(f, r2)|", xformatter=(_->""); params...)
+p3 = plot(f.*1e-9, H_abs.(f, t3)./Hmax, ylabel="|H(f, r3)|", xlabel="f [GHz]"; params...)
 
-plot(p1, p2, p3, layout=(3,1), size=(480, 360))
+plot(p1, p2, p3, layout=(3,1), size=(480, 320))
 ```
-
+Este análisis se puede relacionar con la respuesta al impulso instantánea del canal, $h(\tau, r_i)$, presentadas en la @fig-spread.
 ```{julia}
 #| echo: false
 #| label: fig-spread
-#| fig-cap: "Fila 1: r = 200m. Fila 2: r = 500m. Fila 3: r = 800m. Respuesta del canal en el dominio del tiempo a diferentes posiciones de receptor."
+#| fig-cap: "Fila 1: r = 200m. Fila 2: r = 500m. Fila 3: r = 800m."
 t1, t2, t3 = t[1], t[end/2 |> Int], t[end]
 hmax = maximum(h(t´, t1))
 
 params = (xlims=(0,8), ylims=(-0, 1), legend=false)
 
-p1 = plot(t´.*1e6, h(t´, t1)./ hmax .|> abs, ylabel="h(τ, $(r(t1) |> ceil |> Int)m)", xformatter=(_->""); params...)
-p2 = plot(t´.*1e6, h(t´, t2)./ hmax .|> abs, ylabel="h(τ, $(r(t2) |> ceil |> Int)m)", xformatter=(_->""); params...)
-p3 = plot(t´.*1e6, h(t´, t3)./ hmax .|> abs, ylabel="h(τ, $(r(t3) |> ceil |> Int)m)", xlabel="τ [ms]"; params...)
+p1 = plot(t´.*1e6, h(t´, t1)./ hmax .|> abs, ylabel="h(τ, r1)", xformatter=(_->""); params...)
+p2 = plot(t´.*1e6, h(t´, t2)./ hmax .|> abs, ylabel="h(τ, r2)", xformatter=(_->""); params...)
+p3 = plot(t´.*1e6, h(t´, t3)./ hmax .|> abs, ylabel="h(τ, r3)", xlabel="τ [ms]"; params...)
 
-plot(p1, p2, p3, layout=(3,1), size=(480, 360))
+plot(p1, p2, p3, layout=(3,1), size=(480, 320))
 ```
 
 Si se estudia la respuesta en frecuencia para un determinado valor de $r$, se puede comparar con la diferencia de fase para observar el ancho de banda de coherencia correspondiente a esa posición. 
+
+Para este análisis se implementa la función que calcula $\Delta\theta$ según la @eq-fase, ajustada para que retorne $\Delta\theta\in[-\pi, \pi]$.
+```{julia}
+#| output: false
+function dif_fase(f, t)
+  dif = f*(ti[2](t)-ti[1](t))
+  return 2pi*mod(dif,1)-pi
+end
+```
+
 ```{julia}
 #| echo: false
 #| label: fig-Wc
@@ -193,7 +205,6 @@ plot!(p2, [flims[1], flims[2]], [0, 0], linecolor=:black, linestyle=:dash)
 plot(p1, p2, layout=(2,1), size=(480,240))
 ```
 
-Alternativamente, se puede fijar una determinada frecuencia de portadora y estudiar la evolución de la respuesta en frecuencia conforme varía la posición del receptor en su recorrido. Tales resultados se presentan en la @fig-respuestax 
 
 ```{julia}
 t2 = range(d-2.01r0, d-2r0, N)./v

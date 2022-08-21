@@ -1,0 +1,18 @@
+\begin{center}
+    \resizebox{0.9\linewidth}{!}{
+    \begin{tikzpicture}
+    \draw[->, thick] (0,0) -- (0,\W) node[label={left:  $f$}]{};
+    \draw[->, thick] (0,0) -- (\W,0) node[label={below: $t\phantom{t_1}$}]{};
+    
+    \draw[<->, dashed] (\fA*\W, 0   ) node[label={below: $t_1$}]{} --
+                       (\fA*\W, \W/2) node[style={fill=white}]{$h(f, t_1)$} --
+                       (\fA*\W, \W );
+    \draw[<->, dashed] (\fB*\W, 0   ) node[label={below: $t_2$}]{} --
+                       (\fB*\W, \W/2) node[style={fill=white}]{$h(f, t_2)$} --
+                       (\fB*\W, \W  );
+    \draw[<->, dashed] (\fC*\W, 0   ) node[label={below: $t_3$}]{} --
+                       (\fC*\W, \W/2) node[style={fill=white}]{$h(f, t_3)$} --
+                       (\fC*\W, \W  );
+\end{tikzpicture}
+}
+\end{center}

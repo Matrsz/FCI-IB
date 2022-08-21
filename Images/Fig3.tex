@@ -1,14 +1,19 @@
-\begin{tikzpicture}
-    \draw[->, thick] (0,0) -- (0,\W) node[label={left:  f}]{};
-    \draw[->, thick] (0,0) -- (\W,0) node[label={below: t}]{};
+\begin{center}
+    \resizebox{0.9\linewidth}{!}{
+    \begin{tikzpicture}
+
+    \draw[->, thick] (0,0) -- (0,\W) node[label={left: $f$}]{};
+    \draw[->, thick] (0,0) -- (\W,0) node[label={below:$t\phantom{t_1}$}]{};
     
-    \draw[|-|, dashed] (0,    \fA*\W) node[label={left: $f_1$}]{} --
-                       (\W/2, \fA*\W) node[style={fill=white}]{$h(t, f_1)$} --
+    \draw[<->, dashed] (0,    \fA*\W) node[label={left: $f_1$}]{} --
+                       (\W/2, \fA*\W) node[style={fill=white}]{$h(f_1, t)$} --
                        (\W,   \fA*\W);
-    \draw[|-|, dashed] (0,    \fB*\W) node[label={left: $f_1$}]{} --
-                       (\W/2, \fB*\W) node[style={fill=white}]{$h(t, f_1)$} --
+    \draw[<->, dashed] (0,    \fB*\W) node[label={left: $f_2$}]{} --
+                       (\W/2, \fB*\W) node[style={fill=white}]{$h(f_2, t)$} --
                        (\W,   \fB*\W);
-    \draw[|-|, dashed] (0,    \fC*\W) node[label={left: $f_1$}]{} --
-                       (\W/2, \fC*\W) node[style={fill=white}]{$h(t, f_1)$} --
+    \draw[<->, dashed] (0,    \fC*\W) node[label={left: $f_3$}]{} --
+                       (\W/2, \fC*\W) node[style={fill=white}]{$h(f_3, t)$} --
                        (\W,   \fC*\W);
 \end{tikzpicture}
+}
+\end{center}

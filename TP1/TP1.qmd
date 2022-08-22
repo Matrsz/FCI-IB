@@ -33,7 +33,7 @@ using LaTeXStrings
 pyplot()
 default(fontfamily="serif", legendfontsize=10, palette=:seaborn_deep6)
 
-δ(t´)=[abs(i)==minimum(abs.(t´)) ? 1 : 0 for i in t´]
+dirac(t´)=[abs(i)==minimum(abs.(t´)) ? 1 : 0 for i in t´]
 c = 3e8
 ```
 ## Introducción
@@ -81,8 +81,8 @@ Asimismo, vista como función de $f$, se define el _ancho de banda de coherencia
 Para simular el canal, se implementa la función genérica para un canal de dos caminos en el dominio del tiempo, @eq-h
 ```{julia}
 #| output: false
-h(t´,t) = ai[1](t).*δ(t´.-ti[1](t)).+
-          ai[2](t).*δ(t´.-ti[2](t))
+h(t´,t) = ai[1](t).*dirac(t´.-ti[1](t)).+
+          ai[2](t).*dirac(t´.-ti[2](t))
 ```
 Así como en el dominio de la frecuencia, @eq-H
 ```{julia}

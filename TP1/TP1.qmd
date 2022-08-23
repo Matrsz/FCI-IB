@@ -53,10 +53,10 @@ Consideramos el caso particular de canal inalámbrico variante en el tiempo pres
 
 Este canal es desarrollado en @tse_2 y resulta en
 $$
-a_1(t)=\frac{|\alpha|}{x_1(t)} \qquad a_2(t)=-\frac{|\alpha|}{x_2(t)}
+a_1(t)=\frac{|\alpha|}{x_1(t)} \qquad\qquad a_2(t)=-\frac{|\alpha|}{x_2(t)}
 $$ {#eq-a1}
 $$
-\tau_1(t)=\frac{x_1(t)}{c} \qquad \tau_2(t)=\frac{x_2(t)}{c}
+\tau_1(t)=\frac{x_1(t)}{c} \qquad\qquad \tau_2(t)=\frac{x_2(t)}{c}
 $$ {#eq-a2}
 En donde $x_1(t)$ y $x_2(t)$ son la distancia de cada camino, y el signo de $a_2$ contempla el salto de fase por reflexión
 $$

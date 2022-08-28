@@ -21,7 +21,7 @@ format:
       - left=12mm
       - right=12mm
     latex-auto-install: true
-jupyter: julia-1.7 
+jupyter: julia-1.8 
 ---
 ```{julia}
 #| echo: false
@@ -306,7 +306,9 @@ $$
 La expresiones analíticas se implementan y se procede a realizar la simulación
 ```{julia}
 #| output: false
-Wc(x) = c/(4*(d-x)); Xc(f) = c/(4*f)
+Wc(x) = c/(4*(d-x))
+
+Xc(f) = c/(4*f)
 ```
 Se comparan ambos resultados para el ancho de banda de coherencia, presentados en la @fig-wcder. Se observa que ambos resultados son perféctamente consistentes
 ```{julia}

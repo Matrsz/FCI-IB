@@ -1,0 +1,31 @@
+\begin{center}
+  \resizebox{\linewidth}{!}{
+  \begin{tikzpicture}
+    \draw (0, \D) [ultra thin, dashed] +({\r0*cos(45)},{\r0*sin(45)}) --
+                +(1.5*\r0, {\r0*sin(45)}) edge["$d_1$", |-|, solid] +(1.5*\r0, 0) -- 
+                +(1.5*\r0, 0) -- +(\r0, 0);
+
+    \draw (0,-\D) [ultra thin, dashed] +(0, \r0) --
+                +(1.5*\r0, \r0) edge["$d_2$", |-|, solid] +(1.5*\r0, -\r0)
+                +(1.5*\r0, -\r0) -- +(0, -\r0);
+    \draw [ultra thin, dashed] +(-\r0, -\D) --
+                +(-1.8*\r0, -\D) edge["$d_3$", |-|, solid] +(-1.8*\r0, \D)
+                +(-1.8*\r0, \D) -- 
+                +(-\r0, \D);
+    \draw [ultra thin, dashed] +(-\X, 0) --
+                +(-\X, -0.5) edge["$d_4$", |-|, solid, thick] +(\X, -0.5)
+                +( \X, -0.5) -- +(\X, 0);
+
+    \draw (-\X,0) node[label={above left:Tx}]{} \antenna;
+    \draw ( \X,0) node[label={above left:Rx}]{} \antenna;
+    
+    \foreach \Y in {\D, -\D} {
+        \foreach \t in {0,...,7}
+            \filldraw [Navy] (0,\Y)+({\r0*cos(45*\t)},{\r0*sin(45*\t)}) circle (1pt);
+        \foreach \t in {0,...,6}
+            \filldraw [Navy] (0,\Y)+({\r1*cos(60*\t)},{\r1*sin(60*\t)}) circle (1pt);
+        \filldraw [Navy] (0,\Y)+(0,0) circle(1pt);
+    }
+  \end{tikzpicture}
+  }
+\end{center}

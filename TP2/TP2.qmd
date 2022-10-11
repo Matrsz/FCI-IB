@@ -1,0 +1,119 @@
+---
+title: Fundamentos de Comunicaciones Inalámbricas - TP N°2
+subtitle: Fundamentos de Comunicaciones Inalámbricas
+author: Matías Roqueta
+institute: Instituto Balseiro
+lang: es
+bibliography: Tex/TP1.bib
+biblio-style: ieee
+highlight-style: arrow
+number-sections: true
+format: 
+  pdf:
+    fontfamily: libertinus
+    pdf-engine: xelatex
+    include-in-header: Tex/headers.tex
+    include-before-body: Tex/tikzsetup.tex
+    cite-method: biblatex
+    classoption: twocolumn
+    geometry:
+      - top=20mm
+      - bottom=20mm
+      - left=12mm
+      - right=12mm
+    latex-auto-install: true
+jupyter: julia-1.8 
+---
+```{julia}
+#| echo: false
+#| output: false
+include("./Lib.jl")
+using .Lib
+using Statistics
+using FFTW  
+using Plots, ColorSchemes
+using LaTeXStrings
+
+
+pyplot()
+default(fontfamily="serif", legendfontsize=10, palette=:seaborn_deep6)
+
+dirac(t´)=[abs(i)==minimum(abs.(t´)) ? 1 : 0 for i in t´]
+c = 3e8
+```
+# Introducción
+
+En este trabajo práctico vamos a simular y estudiar los modelos estadísticos de un canal inalámbrico, un ejemplo de tal canal ilustrado en la @fig-canal. 
+
+![Canal inalámbrico de múltiples caminos entre un transmisor y un receptor en presencia de un número arbitrario de reflectores distribuidos en _clusters_.](Images/Fig1.tex){#fig-canal}
+
+Las distancias características del canal, $d_1$, $d_2$, $d_3$, y $d_4$, son de los siguientes órdenes de magnitud
+
+- Distancia media entre reflectores en un cluster: $d_1 \sim 1\text{ m}$
+- Diámetro medio de los clusters: $d_2 \sim 10\text{ m}$
+- Distancia media entre los clusters: $d_3 \sim 100\text{ m}$
+- Distancia entre transmisor y receptor: $d_4 \sim 1\text{ km}$
+
+Para la simulación se cuenta con una librería de funciones relevantes a la tarea, detalladas en el Apéndice 1 (@sec-appendix1).
+
+# Implementación del Canal
+
+Se definen primero las posiciones del emisor `Tx` y el receptor `Rx`, fijas y del orden de 1 km. 
+```{julia}
+#| output: false
+posTx = (0,0)
+posRx = (1000,0)
+```
+A continuación se definen aleatoriamente las posiciones de 5 clusters dentro de un círculo de radio de 250 m centrado en el punto medio entre `Tx` y `Rx`.
+```{julia}
+#| output: false
+Cs = [(500,0).+p.*250 
+           for p in Lib.genClust(5,0,0.75)]
+```
+
+Cada cluster tendrá 20 reflectores distribuidos uniformemente en un radio de 25 m.
+```{julia}
+#| output: false
+Ns = 20 .+ zeros(size(Cs)) .|> Int
+Rs = 25 .+ zeros(size(Cs))
+
+S, Ss = Lib.genScatt(Ns, Rs, Cs)
+```
+
+Graficamos el canal resultante, obteniendo la @fig-canal_jl.
+```{julia}
+#| echo: false
+#| fig-cap: Realización del canal inalámbrico aleatorio
+#| label: fig-canal_jl
+
+p2 = plot(xlim=(-50, 1050), ylim=(-300, 300), axis=([], false), size=(550, 300).*0.8)
+plot!(p2, first.(S), last.(S), seriestype=:scatter, markersize=1, label="")
+plot!(p2, [first(posTx)], [last(posTx)], seriestype=:scatter, markersize=10, markershape=:dtriangle, label="Tx")
+plot!(p2, [first(posRx)], [last(posRx)], seriestype=:scatter, markersize=10, markershape=:dtriangle, label="Rx")
+```
+
+```{julia}
+#| output: false
+dst  =  genDists(S, posTx, posRx)
+dsts = [genDists(s, posTx, posRx) for s in Ss]
+```
+# Apéndice 1 - Documentación {.appendix #sec-appendix1}
+```{julia}
+#| echo: false
+@doc Lib.genClust
+```
+
+```{julia}
+#| echo: false
+@doc Lib.genScatt
+```
+
+```{julia}
+#| echo: false
+@doc Lib.genDists
+```
+
+```{julia}
+#| echo: false
+@doc Lib.delaySpread
+```

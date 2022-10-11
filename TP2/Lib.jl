@@ -1,0 +1,95 @@
+module Lib
+
+export genClust, genScatt, genDists, genhl, delaySpread
+
+""" 
+**clust = genClust(N; minR, minDist)** 
+
+Genera un cluster de N posiciones uniformemente distribuidas en un
+círculo de diámetro unitario. Retorna un vector de tuplas (x,y).
+
+El parámetro opcional minR indica una distancia mínima al centro del cluster que deben tener los elementos.
+
+El parámetro opcional minDist indica una distancia mínima a otros elementos que deben tener los elementos.
+"""
+function genClust(N::Int, minR::Real=0, minDist::Real=0)
+    clust = []
+    for i in 1:N
+        xy = (0, 0)
+        while true
+            r = sqrt(rand())
+            t = 2π*rand()
+            xy = (r*cos(t), r*sin(t))
+            hypot(xy...)<minR || any(p -> hypot((xy.-p)...) < minDist, clust) || break
+        end
+        push!(clust, xy)
+    end
+    return clust
+end
+
+"""
+**S, Ss = genScatt(Ns, Rs, Cs)**
+
+Genera una distribución de reflectores organizados en clusters
+definidos por los vectores Ns, Rs, Cs de la siguiente forma
+
+Ns[i] número de reflectores en el cluster i-ésimo
+
+Rs[i] radio del cluster i-ésimo
+
+Cs[i] coordenadas del centro del cluster i-ésimo
+
+Retorna S un vector de tuplas (x, y) representando las posiciones
+de los reflectores, y un vector de vectores Ss representando las
+posiciones de los reflectores agrupados en sus respectivos clusters.
+"""
+function genScatt(Ns::Vector{Int}, Rs::Vector{Float64}, Cs::Vector{Tuple{Float64, Float64}})
+    clust(N, R, C) = [C .+ R .* x for x in genClust(N)]
+    cs = [clust(N, R, C) for (R, C, N) in zip(Rs, Cs, Ns)] 
+    return [(cs... )... ], cs
+end
+
+"""
+**dists = genDists(S, posTx, posRx)**
+
+Recibe un vector de tuplas S representanto las posiciones (x, y)
+de reflectores, y dos tuplas posTx y posRx representando las posiciones
+de un emisor y receptor.
+
+Retorna un vector con las distancias de todos los posibles caminos entre 
+el emisor y el receptor.
+"""
+function genDists(S::Vector{Tuple{Float64,Float64}}, posTx::Tuple{Real,Real}, posRx::Tuple{Real,Real})
+    Tx_dists = [hypot((posTx.-s)...) for s in S]
+    Rx_dists = [hypot((posRx.-s)...) for s in S]
+    return Tx_dists.+Rx_dists
+end
+
+
+
+function genhl(dists, fc, W, a_i, oversample=1, margin=0)
+    delays = dists./3e8
+    groupdelay = minimum(delays)
+    Td = maximum(delays)-groupdelay
+    rel_delays = delays .- groupdelay
+    a_ib = a_i .* exp.(-im*2π*fc.*delays)
+    len = floor(Td*W*oversample)+margin*oversample
+
+    hl = [sinc.(l/oversample .- floor(margin/2) .- rel_delays.*W)'*a_ib for l in 0:len]
+    tt = (0:len)./W./oversample .- floor(margin/2)/W .+ groupdelay
+
+    return hl, tt
+end
+
+""" 
+Ds = delaySpread(Dsts)
+
+Recibe como parametro un vector dists de distancias (en metros)
+y retorna el delay spread Td (en segundos) entre esas distancias.
+""" 
+function delaySpread(dists::Vector{Real})
+    return (maximum(dists)-minimum(dists))/3e8
+end
+
+end
+

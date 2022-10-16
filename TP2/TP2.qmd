@@ -31,15 +31,17 @@ include("./Lib.jl")
 using .Lib
 using Statistics
 using FFTW  
+using Distributions
 using Plots, ColorSchemes
 using LaTeXStrings
-
+using Markdown
 
 pyplot()
-default(fontfamily="serif", legendfontsize=10, palette=:seaborn_deep6)
+default(fontfamily="serif", legendfontsize=10, tickfontsize=10, palette=:seaborn_deep6)
 
-dirac(t´)=[abs(i)==minimum(abs.(t´)) ? 1 : 0 for i in t´]
-c = 3e8
+margin = 25
+oversample=16384
+fc = 1e9
 ```
 # Introducción
 
@@ -56,7 +58,7 @@ Las distancias características del canal, $d_1$, $d_2$, $d_3$, y $d_4$, son de 
 
 Para la simulación se cuenta con una librería de funciones relevantes a la tarea, detalladas en el Apéndice 1 (@sec-appendix1).
 
-# Implementación del Canal
+# Especificación del Canal
 
 Se definen primero las posiciones del emisor `Tx` y el receptor `Rx`, fijas y del orden de 1 km. 
 ```{julia}
@@ -67,15 +69,18 @@ posRx = (1000,0)
 A continuación se definen aleatoriamente las posiciones de 5 clusters dentro de un círculo de radio de 250 m centrado en el punto medio entre `Tx` y `Rx`.
 ```{julia}
 #| output: false
-Cs = [(500,0).+p.*250 
-           for p in Lib.genClust(5,0,0.75)]
+R = 200
+Cs = [posRx.+R.*p for p in [( 0.5, 1.0), 
+                            ( 1.0,-0.5), 
+                            (-0.5,-1.0), 
+                            (-1.0, 0.5)]]
 ```
 
 Cada cluster tendrá 20 reflectores distribuidos uniformemente en un radio de 25 m.
 ```{julia}
 #| output: false
 Ns = 20 .+ zeros(size(Cs)) .|> Int
-Rs = 25 .+ zeros(size(Cs))
+Rs = 10 .+ zeros(size(Cs))
 
 S, Ss = Lib.genScatt(Ns, Rs, Cs)
 ```
@@ -86,17 +91,323 @@ Graficamos el canal resultante, obteniendo la @fig-canal_jl.
 #| fig-cap: Realización del canal inalámbrico aleatorio
 #| label: fig-canal_jl
 
-p2 = plot(xlim=(-50, 1050), ylim=(-300, 300), axis=([], false), size=(550, 300).*0.8)
-plot!(p2, first.(S), last.(S), seriestype=:scatter, markersize=1, label="")
+p2 = plot(xlim=(-50, posRx[1]+R+50), ylim=(-R-50, R+50), axis=([], false), size=(posRx[1]+R+100, 2*R+100).*0.5, legend=:topleft)
 plot!(p2, [first(posTx)], [last(posTx)], seriestype=:scatter, markersize=10, markershape=:dtriangle, label="Tx")
 plot!(p2, [first(posRx)], [last(posRx)], seriestype=:scatter, markersize=10, markershape=:dtriangle, label="Rx")
+plot!(p2, first.(S), last.(S), seriestype=:scatter, markersize=1, label="")
+for s in Cs
+  plot!(p2, first.([posTx, s, posRx]), last.([posTx, s, posRx]), linewidth=0.1, linestyle=:dot, linecolor=:gray, label="")
+end
+plot(p2)
 ```
+En la figura se grafican en línea punteada los posibles caminos `Tx` $\rightarrow$ reflector $\rightarrow$ `Rx`. Se calculan las longitudes de los caminos y se presenta su histograma en la @fig-hist_caminos.
+
+
+```{julia}
+#| echo: false
+#| fig-cap: Distribución de longitud de caminos presentes en la realización del canal vista en la @fig-canal_jl
+#| label: fig-hist_caminos
+
+p1 = histogram(Lib.genDists(S, posTx, posRx).*1e-3, normalize=false, bins=range(posRx[1], stop=posRx[1]+2*R, length=8*length(Ns)).*1e-3, xlabel="r [km]", legend=false, size=(480,200))
+```
+
+# Anchos de banda $W_1 < W_2  < W_3$
+
+Proponga $W_1 < W_2 < W_3$ tal que:
+
+1. Toda la información del canal esté concentrada en un único tap
+2. El sistema pueda resolver los clusters pero no los caminos que los conforman
+3. El sistema pueda resolver buena parte de los caminos en cada cluster
+
+Para encontrar tales anchos de banda, hacemos uso del ancho de banda de coherencia, relacionado con el _delay spread_ $T_S$ del canal según
+$$
+W_C \sim \frac{1}{T_s}
+$$
+
+En donde $T_S$ es proporcional a la diferencia entre el camino más largo y el más corto del canal. En base a esto encontramos los delay spread en función de las distancias de los caminos, usando las siguientes distancias
+
+- Vector de todas las distancias que constituyen el canal, graficadas en la @fig-hist_caminos.
+- Vector de distancias que constituyen al canal considerando cada cluster como un reflector puntual.
+- Vector de todas las distancias que constituyen el canal, agrupadas según el cluster a que pertenecen.
+```{julia}
+#| output: false
+dst  = Lib.genDists(S, posTx, posRx)
+dstC = Lib.genDists(Cs, posTx, posRx)
+dstS = [Lib.genDists(s, posTx, posRx) 
+                               for s in Ss]
+```
+En función de las distancias, calculamos dos anchos de banda de coherencia característicos, $W_{C1}$ y Y $W_{C2}$. 
+
+- $W_{C1}$: AB de coherencia considerando cada cluster como un reflector puntual
+- $W_{C2}$: AB de coherencia medio de un único cluster, ignorando los demás clusters
 
 ```{julia}
 #| output: false
-dst  =  genDists(S, posTx, posRx)
-dsts = [genDists(s, posTx, posRx) for s in Ss]
+Wc1 = 1 / Lib.delaySpread(dstC) 
+Wc2 = mean(1. / Lib.delaySpread.(dstS)) 
 ```
+
+```{julia}
+#| echo: false
+Wc2 = maximum(1. / Lib.delaySpread.(dstS)) 
+Markdown.parse("""
+Se obtienen así los siguentes anchos de banda de coherencia:
+\$W_{c1}\$ = $(round(Wc1*1e-6,digits=2)) MHz,
+\$W_{c2}\$ = $(round(Wc2*1e-6,digits=2)) MHz
+""")
+```
+
+En base a esto, la consigna se cumple eligiendo
+
+- $W_1 < W_{C1} < W_2 < W_{C2} < W_3$
+```{julia}
+#| echo: false
+W1 = Wc1/10
+W2 = Wc2*0.9
+W3 = Wc2*10
+Markdown.parse("""
+Para cumplir esos requisitos se eligen los siguientes anchos de banda: \$W_1\$ = $(round(W1*1e-6,digits=2)) MHz, \$W_2\$ = $(round(W2*1e-6,digits=2)) MHz, \$W_3\$ = $(round(W3*1e-6,digits=2)) MHz.
+""")
+```
+
+Se considera una frecuencia central de 1 GHz, y en esta primera instancia se consideran atenuaciones $a_i=1$ para todos los caminos.
+```{julia}
+#| output: false
+a_i = 1 .+ zeros(size(dst))
+```
+
+Y se procede a analizar la respuesta al impulso del canal para los tres anchos de banda elegidos.
+
+## Ancho de Banda $W_1$
+Se genera la respuesta al impulso del canal a un ancho de banda $W_{c1}$ en su versión analógica y digital, obteniendo la @fig-h_ayd_1. Asimismo se calcula la respuesta en frecuencia correspondiente, obteniendo la @fig-resp_frec_1.
+```{julia}
+#| echo: false
+#| label: fig-h_ayd_1
+#| fig-cap: Respuesta al impulso del canal para el ancho de banda $W_1$ en su versión analógica y digital
+hd_1, td_1 = Lib.genhl(dst, fc, W1, a_i, 1, margin)
+ha_1, ta_1 = Lib.genhl(dst, fc, W1, a_i, oversample, margin)
+
+p1 = plot(ta_1.*1e3, ha_1 .|> abs)
+plot!(p1, td_1.*1e3, hd_1 .|> abs, line=:stem, marker=:square,xlabel="t [ms]", size=(480,200), legend=false)
+```
+```{julia}
+#| echo: false
+#| label: fig-resp_frec_1
+#| fig-cap: Respuesta al impulso del canal analógico y su correspondiente respuesta en frecuencia para el ancho de banda $W_1$
+Ha_1, fa_1 = Lib.genHl(ha_1, ta_1)
+Ha_1 = Ha_1./maximum(abs.(Ha_1))
+
+p1 = plot(ta_1.*1e3, ha_1 .|> abs, xlabel="t [ms]")
+p2 = plot(fa_1.*1e-6, Ha_1 .|> abs, xlim=(-1, 1).*W1.*1e-6, xlabel="f [MHz]")
+plot!(p1, p2, layout=(2,1), size=(480,300), legend=false)
+```
+Se observa a partir de la @fig-resp_frec_1 que el canal tiene una respuesta en frecuencia plana, correspondiente al comportamiento esperado de un canal con _flat fading_.
+
+## Ancho de Banda $W_2$
+
+Se repite el análisis para la misma realización del canal ahora usando un ancho de banda $W_2$, obteniendo la @fig-h_ayd_2 y @fig-resp_frec_2.
+
+```{julia}
+#| echo: false
+#| label: fig-h_ayd_2
+#| fig-cap: Respuesta al impulso del canal para el ancho de banda $W_2$ en su versión analógica y digital
+hd_2, td_2 = Lib.genhl(dst, fc, W2, a_i, 1, margin)
+ha_2, ta_2 = Lib.genhl(dst, fc, W2, a_i, oversample, margin)
+
+p1 = plot(ta_2.*1e3, ha_2 .|> abs)
+plot!(p1, td_2.*1e3, hd_2 .|> abs, line=:stem, marker=:square,xlabel="t [ms]", size=(480,200), legend=false)
+```
+```{julia}
+#| echo: false
+#| label: fig-resp_frec_2
+#| fig-cap: Respuesta al impulso del canal analógico y su correspondiente respuesta en frecuencia para el ancho de banda $W_2$
+Ha_2, fa_2 = Lib.genHl(ha_2, ta_2)
+Ha_2 = Ha_2./maximum(abs.(Ha_2))
+
+p1 = plot(ta_2.*1e3, ha_2 .|> abs, xlabel="t [ms]")
+p2 = plot(fa_2.*1e-6, Ha_2 .|> abs, xlim=(-1, 1).*W2.*1e-6, xlabel="f [MHz]")
+plot!(p1, p2, layout=(2,1), size=(480,300), legend=false)
+```
+
+Se observa en la @fig-resp_frec_2 que a este ancho de banda el canal deja de tener una respuesta en frecuencia plana. Es decir, el canal deja de tener _flat fading_ y pasa a ser un canal selectivo en frecuencia.
+
+## Ancho de Banda $W_3$
+
+Finalmente se repite el ensayo para el ancho de banda $W_3$, obteniendo la @fig-h_ayd_3 y @fig-resp_frec_3.
+
+```{julia}
+#| echo: false
+#| label: fig-h_ayd_3
+#| fig-cap: Respuesta al impulso del canal para el ancho de banda $W_3$ en su versión analógica y digital
+hd_3, td_3 = Lib.genhl(dst, fc, W3, a_i, 1, margin)
+ha_3, ta_3 = Lib.genhl(dst, fc, W3, a_i, oversample, margin)
+
+p1 = plot(ta_3.*1e3, ha_3 .|> abs)
+plot!(p1, td_3.*1e3, hd_3 .|> abs, line=:stem, marker=:square,xlabel="t [ms]", size=(480,200), legend=false)
+```
+Se aprecian en la @fig-h_ayd_3 múltiples picos correspondiendo a los varios reflectores, agrupados según el cluster al que pertenecen. 
+
+```{julia}
+#| echo: false
+#| label: fig-resp_frec_3
+#| fig-cap: Respuesta al impulso del canal analógico y su correspondiente respuesta en frecuencia para el ancho de banda $W_3$
+Ha_3, fa_3 = Lib.genHl(ha_3, ta_3)
+Ha_3 = Ha_3./maximum(abs.(Ha_3))
+
+p1 = plot(ta_3.*1e3, ha_3 .|> abs, xlabel="t [ms]")
+p2 = plot(fa_3.*1e-6, Ha_3 .|> abs, xlim=(-1, 1).*W3.*1e-6, xlabel="f [MHz]")
+plot!(p1, p2, layout=(2,1), size=(480,300), legend=false)
+```
+
+Esto se refleja en un comportamiento de selectividad en frecuencia más pronunciado, apreciable en la @fig-resp_frec_3.
+
+# Canal Rayleigh
+
+```{julia}
+#| echo: false
+#| output: false
+params = (Ns=Ns, Rs=Rs, Cs=Cs, posTx=posTx, posRx=posRx, fc=fc, W=W1, a_i=a_i, margin=margin)
+```
+
+A continuación se verificará empíricamente que el canal con _flat fading_ correspondiente a la @fig-h_ayd_1, tiene comportamiento de canal Rayleigh. Este tipo de canal se caracteriza por la distribución de su tap central $h_0$
+$$
+h_0 \sim \mathcal{CN}(0, \sigma) \implies 
+\begin{aligned}
+\left|h_0\right| &\sim \text{Rayleigh}(\sigma)\\[0.5em]
+\phi_{h_0} &\sim \mathcal{U}(0,2\pi)
+\end{aligned}
+$${#eq-rayleigh}
+
+La verificación se consigue haciendo múltiples realizaciones del canal y registrando el valor del tap central.
+```{julia}
+#| output: false
+hs = Lib.simulateFlatFade(4000; params...)
+abs_hs, arg_hs = abs.(hs), angle.(hs)
+```
+Los datos se ajustarán a una distribución Rayleigh para validar la propiedad de canal. Para estimar el valor del parámetro característico de la distribución $\sigma$ se usará el estimador de máxima verosimilitud
+$$
+\mathlarger{\hat\sigma}_{ML} = \sqrt{\frac{1}{2N}\sum_{i=1}^N x_i^2}
+$${#eq-est_rayleigh}
+```{julia}
+#| echo: false
+Markdown.parse("""
+Se obtiene el valor del estimador σ = $(round(sqrt(sum(abs_hs.^2)./(2*length(abs_hs))), digits=2)) y se utiliza para instanciar una distribución Rayleigh con ese parámetro.
+""")
+```
+```{julia}
+#| output: false
+est = sqrt(sum(abs_hs.^2)./(2*length(abs_hs)))
+ray = Rayleigh(est)
+```
+Por otra parte la distribución esperada de la fase ya es conocida a priori, es la distribución uniforme de $-\pi$ a $\pi$. No hace falta estimar ningún parámetro y la distribución se instancia diréctamente.
+```{julia}
+#| output: false
+uni = Uniform(-pi, pi)
+```
+La pdf obtenida se compara con el histograma normalizado obtenido obteniendo la @fig-rayleigh, se observa que la distribución estimada se ajusta muy bien a los datos empíricos.
+```{julia}
+#| echo: false
+#| label: fig-rayleigh
+#| fig-cap: Histogramas normalizados de módulo y fase del tap central sobre varias realizaciones del canal con _flat fading_, comparados con las correspondientes distribuciones esperadas.
+p1 = histogram(abs_hs, normalize=:pdf, bins=range(0,maximum(abs_hs),20), xlabel=L"$\left|h_0\right|$", ylabel="pdf", label="Realz.")
+x = range(0, maximum(abs_hs), length=2048)
+y = pdf.(ray, x)
+plot!(p1, x, y, linewidth=2, label="Fit")
+p2 = histogram(arg_hs, normalize=:pdf, bins=range(-pi,pi,20), xlabel=L"$\phi_{h_0}}$", ylabel="pdf", label="")
+x = range(-3.2, 3.2, length=2048)
+y = pdf.(uni, x)
+plot!(p2, x, y, linewidth=2, label="")
+plot(p1, p2, layout=(2,1), size=(480, 360))
+```
+
+# Canal Rician
+A continuación se estudia el caso en el que existe un camino principal que contiene $\kappa$ veces la energía de la sumatoria de todos los demás caminos (factor $K$). En este caso se espera que el canal sea canal Rician, cumpliendo la siguiente distribución de $h_0$
+$$
+h_0 \sim \sqrt{\frac{\kappa}{\kappa+1}}\sigma e^{k\theta} + \sqrt{\frac{1}{\kappa+1}} \mathcal{CN}(0, \sigma) \implies 
+\begin{aligned}
+\left|h_0\right| &\sim \text{Rice}(\nu, \sigma)\\[0.5em]
+\phi_{h_0} &\sim \mathcal{U}(0,2\pi)
+\end{aligned}
+$${#eq-rician}
+
+Para esto se cuenta con una función que modifica las atenuaciones $a_i$ para generar un camino especular según algún parámetro K
+
+```{julia}
+#| output: false
+k = 1
+a2_i = Lib.toRician(a_i, k)
+```
+Y con el nuevo vector de atenuaciones se simula el canal _flat fading_ de la misma forma que en caso Rayleigh
+```{julia}
+#| output: false
+params = (params..., a_i = a2_i)
+hs = Lib.simulateFlatFade(4000; params...)
+abs_hs, arg_hs = abs.(hs), angle.(hs)
+```
+La distribución Rician se caracteriza por sus parámetros $\nu$ y $\sigma$, pero también se puede caracterizar por el parámetro de forma $K$ y el parámetro de escala $\Omega$. Si se cuenta con esos parámetros, se pueden obtener $\nu$ y $\sigma$ según las expresiones
+$$
+\begin{aligned}
+\sigma &= \sqrt{\frac{\Omega}{2(K+1)}}\\[1em]
+\nu &= \sigma\sqrt{2K}
+\end{aligned}
+$${#eq-rice_transform}
+
+Trabajar con estos parámetros es muy fácil en nuestro caso ya que el parámetro $K$ es el mismo parámetro $K$ de nuestro canal Rician, y $\Omega$ es el segundo momento de la distribución.
+$$
+\Omega = \nu^2 + 2\sigma^2 = E\left[|h_0|^2\right]
+$${#eq-moment}
+
+Utilizando estas ecuaciones es que se instancia la distribución Rician que espera que se ajuste a los resultados de la simulación.
+```{julia}
+#| output: false
+omega = mean(abs_hs.^2)
+sigma = sqrt(omega/(2*(k+1)))
+nu = sigma*sqrt(2*k)
+ric = Rician(nu, sigma)
+```
+Tal como en el caso Rayleigh, se grafican los histogramas de $|h_0|$ y se comparan con las distribuciones esperadas, obteniendo la @fig-rician. Se omiten los gráficos de la fase, pero estos también resultan consistentes con la distribución uniforme
+
+```{julia}
+#| echo: false
+#| label: fig-rician
+#| fig-cap: Distribuciones del módulo del tap central sobre varias realizaciones del canal Rician para diversos valores del factor K.
+
+p = []
+for k in [1, 5, 25, 125]
+  hs, ric = Lib.simulateFlatFade(4000, k; params...)
+  abs_hs = abs.(hs)
+  p1 = histogram(abs_hs, normalize=:pdf, bins=range(minimum(abs_hs),maximum(abs_hs),20), xlabel=L"$\left|h_0\right|$", ylabel="pdf", title=L"\kappa = %$k")
+  x = range(0, maximum(abs_hs), length=2048)
+  y = pdf.(ric, x)
+  plot!(p1, x, y, linewidth=2)
+  push!(p, p1)
+end
+plot(p..., layout=(4,1), size=(480,700), legend=false)
+```
+
+
+
+# Fuerza del Canal
+
+```{julia}
+xmin, xmax = posRx[1].+(-1,1).*0.8.*R
+ymin, ymax = posRx[2].+(-1,1).*0.8.*R
+```
+
+```{julia}
+#| echo: false
+#| fig-cap: Realización del canal inalámbrico aleatorio
+#| label: fig-region
+
+p2 = plot(xlim=(-50, posRx[1]+R+50), ylim=(-R-50, R+50), axis=([], false), size=(posRx[1]+R+100, 2*R+100).*0.5, legend=:topleft)
+plot!(p2, [first(posTx)], [last(posTx)], seriestype=:scatter, markersize=10, markershape=:dtriangle, label="Tx")
+plot!(p2, [first(posRx)], [last(posRx)], seriestype=:scatter, markersize=10, markershape=:dtriangle, label="Rx")
+plot!(p2, first.(S), last.(S), seriestype=:scatter, markersize=1, label="")
+plot!(p2, [xmin, xmin, xmax, xmax, xmin], [ymin, ymax, ymax, ymin, ymin], linestyle=:dash, linecolor=:gray, label="")
+plot(p2)
+```
+
+
 # Apéndice 1 - Documentación {.appendix #sec-appendix1}
 ```{julia}
 #| echo: false
@@ -116,4 +427,9 @@ dsts = [genDists(s, posTx, posRx) for s in Ss]
 ```{julia}
 #| echo: false
 @doc Lib.delaySpread
+```
+
+```{julia}
+#| echo: false
+@doc Lib.genhl
 ```

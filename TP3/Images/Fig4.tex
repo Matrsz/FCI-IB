@@ -1,0 +1,22 @@
+\begin{center}
+    \resizebox{0.9\linewidth}{!}{
+    \begin{tikzpicture}
+    \draw[->, thick] (0,0) -- (0,\W) node[label={left: \large $f\;$}]{};
+    \draw[->, thick] (0, 0) --
+                     (\fA*\W, 0) node[label={below: \small{$t_1$}}]{} --
+                     (\fB*\W, 0) node[label={below: \small{$t_2$}}]{} --
+                     (\fC*\W, 0) node[label={below: \small{$t_3$}}]{} --
+                     (\W, 0)     node[label={below: \large $t$}]{};
+
+    \draw[<->, dashed] (\fA*\W, 0.05*\W) --
+                       (\fA*\W, 0.5*\W) node[style={fill=white}]{$H(f, t_1)$} --
+                       (\fA*\W, 0.95*\W);
+    \draw[<->, dashed] (\fB*\W, 0.05*\W) --
+                       (\fB*\W, 0.5*\W) node[style={fill=white}]{$H(f, t_2)$} --
+                       (\fB*\W, 0.95*\W);
+    \draw[<->, dashed] (\fC*\W, 0.05*\W) --
+                       (\fC*\W, 0.5*\W) node[style={fill=white}]{$H(f, t_3)$} --
+                       (\fC*\W, 0.95*\W);
+\end{tikzpicture}
+}
+\end{center}

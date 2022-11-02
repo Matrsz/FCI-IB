@@ -1,0 +1,23 @@
+\begin{center}
+  \resizebox{\linewidth}{!}{
+  \begin{tikzpicture}
+    \draw (0,0)   node[label={above left:Tx}]{} \antenna --
+          (\r0,0) node[label={above left:Rx}]{} \antenna --
+          (\d,0);
+    \draw[ultra thick] (\d,1.4) -- 
+                       (\d,0);
+    \draw[->, dashed] (0,1.02) -- 
+                      (\r0-0.1,1.02);
+    \draw[->, dashed] (0,1.2) -- 
+                      (\d,1.2) -- 
+                      (\d,1.02) -- 
+                      (\r0+0.1,1.02);
+    \draw[|-|, thin] (0, -0.5) -- 
+                     (\d, -0.5) node[label={right:$d$}] {};
+    \draw[|-|, thin] (0, -0.3) -- 
+                     (\r0, -0.3) node[label={right:$r_o$}] {};
+    \draw[->] (\r0+0.4,0.6) -- 
+              (\r0+1,0.6) node[label={right:$v$}]{};
+  \end{tikzpicture}
+  }
+\end{center}

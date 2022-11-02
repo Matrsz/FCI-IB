@@ -1,0 +1,19 @@
+\begin{center}
+  \resizebox{\linewidth}{!}{
+  \begin{tikzpicture}
+    \draw (-1.25*\X,0) node[label={above left:Tx}]{} \antenna;
+    \draw ( \X,0) node[]{} \antenna;
+    
+    \foreach \t in {0,...,7}
+        \filldraw [Navy] (\X,0)+({\r2*cos(45*\t)},{\r2*sin(45*\t)}) circle (1.2pt);
+    \foreach \t in {0,...,3}
+        \filldraw [Navy] (\X,0)+({\r3*cos(90*\t+45)},{\r3*sin(90*\t+45)}) circle (1.2pt);
+
+    \draw (-1.25*\X, 0) edge["$d_{1A}$", dashed] ({\X+\r2*cos(45)},{\r2*sin(45)});
+    \draw ({\X+\r2*cos(45)},{\r2*sin(45)}) edge["$d_{2A}$", dashed] (\X, 0);
+    \draw (-1.25*\X, 0) edge["$d_{1B}$", dashed] ({\X+\r3*cos(225)},{\r3*sin(225)});
+    \draw ({\X+\r3*cos(225)},{\r3*sin(225)}) edge["$d_{2B}$", dashed] (\X, 0);
+    
+  \end{tikzpicture}
+  }
+\end{center}

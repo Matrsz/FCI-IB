@@ -27,7 +27,7 @@ jupyter: julia-1.8
 ```{julia}
 #| echo: false
 #| output: false
-include("./Lib.jl")
+include("./Julia/Lib.jl")
 using .Lib
 using Statistics
 using FFTW  
@@ -57,7 +57,7 @@ Las distancias características del canal, $d_1$, $d_2$, $d_3$, y $d_4$, son de 
 - Distancia media entre los clusters: $d_3 \sim 100\text{ m}$
 - Distancia entre transmisor y receptor: $d_4 \sim 1\text{ km}$
 
-Para la simulación se cuenta con una librería de funciones relevantes a la tarea, disponibles en el siguiente [repositorio](https://github.com/Matrsz/FCI-IB/blob/master/TP2/Lib.jl).
+Para la simulación se cuenta con una librería de funciones relevantes a la tarea, disponibles en el siguiente [repositorio](https://github.com/Matrsz/FCI-IB/blob/master/TP2/Julia/Lib.jl).
 
 # Especificación del Canal
 

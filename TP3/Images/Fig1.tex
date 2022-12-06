@@ -1,23 +1,19 @@
 \begin{center}
   \resizebox{\linewidth}{!}{
-  \begin{tikzpicture}
-    \draw (0,0)   node[label={above left:Tx}]{} \antenna --
-          (\r0,0) node[label={above left:Rx}]{} \antenna --
-          (\d,0);
-    \draw[ultra thick] (\d,1.4) -- 
-                       (\d,0);
-    \draw[->, dashed] (0,1.02) -- 
-                      (\r0-0.1,1.02);
-    \draw[->, dashed] (0,1.2) -- 
-                      (\d,1.2) -- 
-                      (\d,1.02) -- 
-                      (\r0+0.1,1.02);
-    \draw[|-|, thin] (0, -0.5) -- 
-                     (\d, -0.5) node[label={right:$d$}] {};
-    \draw[|-|, thin] (0, -0.3) -- 
-                     (\r0, -0.3) node[label={right:$r_o$}] {};
-    \draw[->] (\r0+0.4,0.6) -- 
-              (\r0+1,0.6) node[label={right:$v$}]{};
-  \end{tikzpicture}
+    \begin{tikzpicture}[]
+      \draw (-\shortlinelen, 0.5*\blockwidth) node[left] {$\mathbf{x}$} -- ++(\shortlinelen, 0);
+      \draw (0,0) rectangle ++(\blockwidth, \blockwidth) node[pos=0.5]{Cod.};
+      \draw (\blockwidth, 0.5*\blockwidth) -- ++(0.5*\linelen, 0) node[below] {$\mathbf{\bar x}$} -- ++(0.5*\linelen, 0);
+      \draw (\blockwidth+\linelen,0) rectangle ++(\blockwidth, \blockwidth) node[pos=0.5]{Inter.};
+      \draw (\linelen+2*\blockwidth, 0.5*\blockwidth) -- ++(0.5*\linelen, 0) node[below] {$\mathbf{\check x}$} -- ++(0.5*\linelen, 0);
+      \draw (2*\blockwidth+2*\linelen,0) rectangle ++(\blockwidth, \blockwidth) node[pos=0.5]{Canal};
+      \draw (2.5*\blockwidth+2*\linelen, \blockwidth) -- ++(0, \shortlinelen) node[above]{$\mathbf{H}$};
+      \draw (2*\linelen+3*\blockwidth, 0.5*\blockwidth)  -- ++(0.5*\linelen, 0) node[below] {$\mathbf{\check y}$} -- ++(0.5*\linelen, 0);
+      \draw (3*\blockwidth+3*\linelen,0) rectangle ++(\blockwidth, \blockwidth) node[pos=0.5]{Inter.};
+      \draw (3*\linelen+4*\blockwidth, 0.5*\blockwidth) -- ++(0.5*\linelen, 0) node[below] {$\mathbf{\bar y}$} -- ++(0.5*\linelen, 0);
+      \draw (4*\blockwidth+4*\linelen,0) rectangle ++(\blockwidth, \blockwidth) node[pos=0.5]{Dec.};
+      \draw (4*\linelen+5*\blockwidth, 0.5*\blockwidth) -- ++(\shortlinelen, 0) node[right] {$\mathbf y$};
+      \draw (4.5*\blockwidth+4*\linelen, \blockwidth) -- ++(0, \shortlinelen) node[above]{$\mathbf{\check H}$};
+    \end{tikzpicture}
   }
 \end{center}

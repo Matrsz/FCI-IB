@@ -1,5 +1,5 @@
 ---
-title: Fundamentos de Comunicaciones Inalámbricas - TP N°1
+title: Fundamentos de Comunicaciones Inalámbricas - TP N°3
 subtitle: Fundamentos de Comunicaciones Inalámbricas
 author: Matías Roqueta
 institute: Instituto Balseiro
@@ -26,321 +26,276 @@ jupyter: julia-1.8
 ```{julia}
 #| echo: false
 #| output: false
+include("./Julia/Lib.jl")
+using .Lib
 using Statistics
-using FFTW  
 using Plots, ColorSchemes
 using LaTeXStrings
+using MAT
+using Distributions
+using Base.Iterators
 pyplot()
-default(fontfamily="serif", legendfontsize=10, palette=:seaborn_deep6)
+default(fontfamily="serif", legendfontsize=10, titlefontsize=12, palette=:seaborn_deep6)
 
-dirac(t´)=[abs(i)==minimum(abs.(t´)) ? 1 : 0 for i in t´]
+h0 = matread("Data/canal.mat")["h0"]
 c = 3e8
 ```
-## Introducción
+# Introducción
 
-A continuación se presenta un análizis de un modelo de canal inalámbrico de dos caminos, definido como un sistema lineal variante en el tiempo (LTV) caracterizado por su respuesta al impulso
+Se cuenta con los datos de un canal inalámbrico con _flat fading_, caracterizado por su respuesta al impulso $h_0$ definida sobre una región geográfica. Los datos del canal provistos están normalizados tal que $E\left[|h_0|^2\right]=1$.
+
+```{julia}
+#| echo: false
+#| label: fig-fuerza
+#| fig-cap: Mapa de fuerza del canal. 
+
+#heatmap(abs.(h0).^2, xlabel="x [cm]", ylabel="y [cm]", title=L"|h_0|^2", size=(400,400), colorbar=false, c=:devon, aspect_ratio=:equal)
+```
+
+Sobre el canal se transmitirá una secuencia BPSK. 
 $$
-  h(\tau, t) = \sum_{i=1}^2 a_i(t)\,\delta\left(\tau - \tau_i(t)\right) 
-$$ {#eq-h}
-Su respuesta en frecuencia se consigue con la transformada de Fourier respecto a la variable $\tau$
+  y = h_0 x + w \qquad\qquad x = \pm 1
+$${#eq-bpsk_tx}
+
+El canal cuenta con ruido AWGN en fase y cuatratura, $w = w_I + j w_Q$, a determinada potencia de ruido $N_0$. 
+$$ 
+  w \sim \mathcal{CN}(0, N_0) \implies 
+  w_I, w_Q \sim \mathcal N \left(0, \tfrac{N_0}{2}\right)
+$${#eq-noise}
+
+Con $w_I$ y $w_Q$ independientes.
+
+Se considera que el receptor cuenta con conicimiento del estado del canal, permitiendo hacer recepción óptima por máxima verosimilitud. Se usa el estadístico suficiente definido según @@tse_31
 $$
-  H(f, t) = \sum_{i=1}^2 a_i(t)\,e^{-2\pi f \tau_i(t)}
-$$ {#eq-H}
+ r = \frac{h_0^\ast}{|h_0|}y = |h_0| x + \check{w} 
+$${#eq-suf_statistic}
 
-Consideramos el caso particular de canal inalámbrico variante en el tiempo presentado en la @fig-canal
+Al estar normalizado el canal, las propiedades estadísticas de $\check w$ son idénticas a las de $w$ definidas en la @eq-noise.
 
-![Canal inalámbrico de 2 caminos conformado por una antena emisora Tx estática, antena receptora Rx móvil con velocidad constante, y un reflector.](Images/Fig1.tex){#fig-canal}
-
-Este canal es desarrollado en @tse_2 y resulta en
+Finalmente la detección por máxima verosimilitudo se consigue aplicando la siguiente regla de decisión 
 $$
-a_1(t)=\frac{|\alpha|}{x_1(t)} \qquad\qquad a_2(t)=-\frac{|\alpha|}{x_2(t)}
-$$ {#eq-a1}
+  \hat x \leftarrow \mathcal R \left[r\right] \decide_{-1}^{1} 0
+$${#eq-decision}
+
+Utilizando estas funciones simulamos, por ejemplo, la transmisión de una secuencia de 50 símbolos, de forma representada en la @fig-transmit.
+
+```{julia}
+#| echo: false
+#| label: fig-transmit
+#| fig-cap: Ejemplo de la simulación de transisión-recepción de una secuencia de 50 símbolos BPSK, resaltando los errores de transmisión.
+
+m_len = 50
+h = 1
+N0 = 5
+
+t = 1:m_len
+x = rand([-1,1], m_len)
+r = Lib.tx.(x, h, N0)
+y = Lib.rx.(r, h)
+p1 = plot(t, x, line=:stem, marker=:square, framestyle=:origin, title="Secuencia Tx", yaxis=[], xaxis=[])
+p2 = plot(t[y .== x], y[y .== x], line=:stem, marker=:square, framestyle=:origin, title="Secuencia Rx")
+plot!(p2, t[y .!= x], y[y .!= x], line=:stem, marker=:square, color=:darkred, yaxis=[], xaxis=[])
+plot(p1, p2, layout=(2,1), size=(400,200), legend=false)
+```
+Eligiendo secuencias de longitud suficiente se puede estimar la tasa de error de bits empíricamente para determinada respuesta al impulso y potencia de ruido 
 $$
-\tau_1(t)=\frac{x_1(t)}{c} \qquad\qquad \tau_2(t)=\frac{x_2(t)}{c}
-$$ {#eq-a2}
-En donde $x_1(t)$ y $x_2(t)$ son la distancia de cada camino, y el signo de $a_2$ contempla el salto de fase por reflexión
+  \text{BER}_E \,\vert\, h_0 = \frac{\text{\# bits con error}}{\text{\# bits transmitidos}}\,\Bigg|_{h_0}
+$${#eq-berE_h0}
+
+Esto se promedia sobre múltiples realizaciones del canal inalámbrico
 $$
-  x_1(t) = r_0+vt \qquad x_2(t)=2d-r_0-vt
-$$ {#eq-xi}
+  \text{BER}_E = \overline{\text{BER}_E \,\vert\, h_0}
+$${#eq-berE}
 
-Al existir dos caminos se presentará interferencia en el canal, que se puede analizar expresando la diferencia de fase entre estos. La expresión resultará en interferencia constructiva cuando $\Delta\theta$ es un múltiplo par de $\pi$, y en interferencia destructiva cuando este es un múltiplo impar de $\pi$
+```{julia}
+#| echo: false
+#| output: false
+
+from_dB(x) = 10^(x/10)
+to_dB(x) = 10*log10(x)
+
+snrdb_cont = -10:0.1:40
+snrdb_disc = -10:2:40
+snr_cont = from_dB.(snrdb_cont)
+snr_disc = from_dB.(snrdb_disc);
+```
+
+La tasa de error de bits empírica se evalúa para diferentes valores de relación señal-ruido. Esta se compara con la tasa de error de bits esperada para el canal.
 $$
-  \Delta\theta = 2\pi f \tau_2(t)+\pi-2\pi f \tau_1(t)
-$$ {#eq-fase}
-Desarrollando la expresión para el canal de la @fig-canal se llega al resultado
+  \text{BER}_T = \frac{1}{2}\left(1-\sqrt{\frac{\text{SNR}}{1+\text{SNR}}}\right)
+$${#eq-berT}
+
+Los resultados de comparar la @eq-berE con la @eq-berT se observan en la @fig-ber1
+
+```{julia}
+#| echo: false
+#| label: fig-ber1
+#| fig-cap: Curva teórica y resultados de simulación de la tasa de error de bits para una transmisión BPSK simple. 
+
+m_len = 2048
+n_points = 2048
+ber_E = Lib.BER_E(snr_disc, h0, n_points, m_len)
+ber_T = Lib.BER_T.(snr_cont)
+
+plot(snrdb_cont, nextfloat.(ber_T), label="Teórico", xlabel="SNR [dB]", ylabel="BER")
+plot!(snrdb_disc, nextfloat.(ber_E), yaxis=(:log, [1e-5, 1]), label="Simulado", line=false, marker=:square)
+```
+
+# Diversidad Temporal
+
+A continuación se estudiaría el comportamiento del canal al tener un receptor móvil, lo cual implica variación temporal de la respuesta al impulso. Esto requirere el uso de una codificación que aproveche la diversidad. Se usará código de repetición con longitud $L$. 
+
+A su vez, para maximizar la diversidad se aplicará entrelazado de datos de longitud $L$. Los datos se organizan en bloques de $L$ símbolos y se expresan de la siguiente forma. 
+
+- $\mathbf{x}$: Vector de símbolos a transmitir, de longitud $L$.
+- $\mathbf{\bar x}$: Vector codificado, de longitud $L^2$.
+- $\mathbf{\check x}$: Vector codificado y entrelazado, de longitud $L^2$.
+
+Usando como ejemplo $L=3$ se aplica la implementación de la preparación de un bloque de símbolos para la tramsisión de la siguiente forma. 
+
+``` {julia}
+#| output: false
+x_o = [:x1, :x2, :x3]
+x_r = Lib.repetition(x_o, 3)
+x_i = Lib.interleave(x_r, 3)
+```
+Y se observan los vectores de símbolos resultantes
+``` {julia}
+#| echo: false
+println("x_o: $x_o")
+println("x_r: $x_r")
+println("x_i: $x_i")
+```
+
+## Interpretación Matricial
+
+El operador entrelazado se puede interpretar como una transformación lineal definida por la matrix $\mathbf E_{L^2\times L^2}$
 $$
-  \Delta\theta = \frac{4\pi}{c} f \left(d-r\right)+\pi
-$$ {#eq-fase2}
+  \mathbf{\check x} = \mathbf{E \bar x} \qquad
+  \mathbf E = 
+  \begin{bmatrix}
+    \mathbf J & \mathbf 0 & \cdots & \mathbf 0\\
+    \mathbf 0 & \mathbf J & & \mathbf 0\\
+    \vdots &  & \ddots & \vdots\\
+    \mathbf 0 & \mathbf 0 & \cdots & \mathbf J\\
+  \end{bmatrix}
+  \qquad
+  \mathbf J =
+  \begin{bmatrix}
+    0 & \cdots & 0 & 1\\
+    0 &  & 1 & 0\\
+    \vdots & \udots &  & \vdots \\
+    1 & \cdots & 0 & 0
+  \end{bmatrix}
+$${#eq-preparex}
 
-Vista la @eq-fase2 como función de $r$, se define la _longitud de coherencia_ $X_C$ como la distancia entre un máximo y un mínimo de interferencia.
+En donde $\mathbf 0 _{L \times L}$ es la matriz nula y $\mathbf J_{L\times L}$ es la matriz anti-diagonal unitaria. Se puede demostrar que la matriz $\mathbf E$ definida en la @eq-preparex cumple ciertas propiedades. En particular interesa que es una matriz simétrica, y que es ortogonal, lo cual implica que es su propia inversa. 
 
-Asimismo, vista como función de $f$, se define el _ancho de banda de coherencia_ $W_C$ de la misma forma.
 
-## Implementación
-
-Para simular el canal, se implementa la función genérica para un canal de dos caminos en el dominio del tiempo, @eq-h
-```{julia}
-#| output: false
-h(t´,t) = ai[1](t).*dirac(t´.-ti[1](t)).+
-          ai[2](t).*dirac(t´.-ti[2](t))
-```
-Así como en el dominio de la frecuencia, @eq-H
-```{julia}
-#| output: false
-H(f,t) = ai[1](t)*exp(-im*2pi*f*ti[1](t))+ 
-         ai[2](t)*exp(-im*2pi*f*ti[2](t))
-```
-
-Para simular el caso particular descrito en la @fig-canal, se especifican las expresiones de $a_i$ y $\tau_i$ de @eq-a1 y @eq-a2 como vectores de funciones
-```{julia} 
-#| output: false
-ai = [t -> 1/xi[1](t), t -> -1/xi[2](t)]
-ti = [t -> xi[1](t)/c, t ->  xi[2](t)/c]
-```
-Igualmente se especifican los $x_i$ descritos en la @eq-xi
-```{julia}
-#| output: false
-r(t) = r0+v*t
-xi   = [t -> r(t), t -> 2*d-r(t)]
-```
-## Simulación
-
-La respuesta del canal se simulará en un ancho de banda de 10 MHz respecto a una frecuencia central $f_0$ de 1 GHz, discretizado en 2048 puntos.
-
-```{julia}
-#| output: false
-f0 = 1e9; BW = 10e6; N = 2048
-f  = f0.+range(-BW/2, BW/2, N)
-dt = 1/(f[2]-f[1])
-t´ = fftfreq(N, dt) |> fftshift
-```
-
-Se fija una distancia de la emisora al reflector de 1 km, y una posición inicial de la receptora de de 200 m. Se estudian posiciones de la antena receptora desde $r=r_0$ hasta $r=d-r_0$, tal como indica la @fig-rango.
-
-![Intervalo de simulación del canal, se evalúan posiciones de la receptora $r(t) \in [r_0,\, d-r_0]$.](Images/Fig2.tex){#fig-rango}
-
-Se considera una velocidad de la receptora de 60 km/h y se eligen tiempos $t$ tal que las posiciones de la receptora estén en el intervalo de evaluación. 
-```{julia}
-#| output: false
-d = 1000; r0 = 200; v = 60*1000/3600
-t = range(0, d-2r0, N)./v
-```
-
-Ya que $H(f,t)$ es una función de 2 dimensiones existen dos formas de realizar la simulación, que requieren fijar uno de los parámetros.
-
-::: {#fig-analisis layout="[[1, 1]]" layout-valign="bottom"}
-![Función $H(f, t_i)$ variando $t_i$.](Images/Fig4.tex){#fig-varT}
-
-![Función $H(f_i, t)$ variando $f_i$.](Images/Fig3.tex){#fig-varF}
-
-Distintas formas de simular e interpretar $H(f, t)$, visualizadas en el plano tiempo-frecuencia.
-:::
-
-Fijar $t_i$ retorna una respuesta en frecuencia del canal intsantántea $H(f, t_i)$, mientras que fijar $f_i$ retorna la evolución temporal de la transferencia del canal en esa frecuencia.
-
-Mientras que $H(f,t)$ es la expresión general de un canal LTV, en la @fig-canal la distancia $r(t)$ caracteriza la respuesta del canal. Los resultados se presentan en función de la distancia.
-
-## Resultados
-
-Al realizar la simulación correspondiente a la @fig-varT, se obtienen las respuestas $H(f, r_i)$ presentadas en la @fig-respuesta. Se observa que el ancho de banda de coherencia incrementa cuando la antena receptora se acerca al reflector
-
-```{julia}
-#| echo: false
-#| label: fig-respuesta
-#| fig-cap: "Fila 1: $r$ = 200m. Fila 2: $r$ = 500m. Fila 3: $r$ = 800m."
-H_abs(f, t) = H(f, t) |> abs
-t1, t2, t3 = t[1], t[end/2 |> Int], t[end]
-Hmax = maximum(H_abs.(f, t1))
-
-params =(ylims=(0, 1), xlims=(0.995, 1.005), legend=false)
-p1 = plot(f.*1e-9, H_abs.(f, t1)./Hmax, ylabel=L"|H(f, r_1)|", xformatter=(_->""); params...)
-p2 = plot(f.*1e-9, H_abs.(f, t2)./Hmax, ylabel=L"|H(f, r_2)|", xformatter=(_->""); params...)
-p3 = plot(f.*1e-9, H_abs.(f, t3)./Hmax, ylabel=L"|H(f, r_3)|", xlabel=L"$f\,$ [GHz]"; params...)
-
-plot(p1, p2, p3, layout=(3,1), size=(480, 320))
-```
-Este análisis se puede relacionar con la respuesta al impulso instantánea del canal, $h(\tau, r_i)$, presentadas en la @fig-spread.
-```{julia}
-#| echo: false
-#| label: fig-spread
-#| fig-cap: "Fila 1: $r$ = 200m. Fila 2: $r$ = 500m. Fila 3: $r$ = 800m."
-t1, t2, t3 = t[1], t[end/2 |> Int], t[end]
-hmax = maximum(h(t´, t1))
-
-params = (xlims=(0,8), ylims=(-0, 1), legend=false)
-
-p1 = plot(t´.*1e6, h(t´, t1)./ hmax .|> abs, ylabel=L"$h(τ, r_1)$", xformatter=(_->""); params...)
-p2 = plot(t´.*1e6, h(t´, t2)./ hmax .|> abs, ylabel=L"$h(τ, r_2)$", xformatter=(_->""); params...)
-p3 = plot(t´.*1e6, h(t´, t3)./ hmax .|> abs, ylabel=L"$h(τ, r_3)$", xlabel=L"$\tau$ [ms]"; params...)
-
-plot(p1, p2, p3, layout=(3,1), size=(480, 320))
-```
-La respuesta al impulso ilustra la diferencia en tiempo que tarda la señal en llegar al receptor por cada camino, característica que recibe el nombre de _delay spread_ del canal.
-
-Comparar la @fig-spread con la @fig-respuesta ilustra que el delay spread es inversamente proporcional al ancho de banda de coherencia.
-
-Interesa estudiar en más detalle la respuesta del canal, comparándola con la diferencia de fase. Para esto se implementa la @eq-fase, ajustada para que retorne $\Delta\theta\in[-\pi, \pi]$.
-```{julia}
-#| output: false
-function dif_fase(f, t)
-  return 2pi*mod(f*(ti[2](t)-ti[1](t)),1)-pi
-end
-```
-Los resultados para $r=800\text{ m}$ se presentan en la @fig-wc
-```{julia}
-#| echo: false
-#| label: fig-wc
-#| fig-cap: "Mínimo $=a_1(r)-a_2(r)$, interferencia destructiva. Máximo $=a_1(r)+a_2(r)$, interferencia constructiva."
-Hs = H.(f, t[end]) .|> abs
-Hmax = (abs(ai[1](t[end]))+abs(ai[2](t[end])))/maximum(Hs)
-Hmin = (abs(ai[1](t[end]))-abs(ai[2](t[end])))/maximum(Hs)
-Hs = Hs/maximum(Hs)
-flims = (0.998, 1.002)
-
-p1 = plot(f.*1e-9, Hs, ylims=(0, 1.1), link=:x, label=false, legend=:outerright, ylabel=L"$|H(f,r_3)|$")
-plot!(p1, f.*1e-9, f.*0 .+Hmax, linecolor=:black, linestyle=:dot, label=L"H_{Max}", link=:x, xlims=flims)
-plot!(p1, f.*1e-9, f.*0 .+Hmin, linecolor=:black, linestyle=:dash, label=L"H_{Min}", link=:x, xlims=flims, xformatter=(_->""))
-
-p2 = plot(f.*1e-9, dif_fase.(f, t[end]), xlims=flims, xlabel=L"$f\;$ [GHz]", link=:x, legend=false, ylabel=L"$\Delta\theta(f, r_3)$")
-plot!(p2, [flims[1], flims[2]], [0, 0], linecolor=:gray, linestyle=:dash)
-plot(p1, p2, layout=(2,1), size=(480,240))
-```
-La @fig-wc ilustra que la respuesta se acerca a máximos de interferencia en frecuencias tales que $\Delta\theta\simeq 0$, y a mínimos en frecuencias tales que $\Delta\theta\simeq\pm\pi$.
-
-Para realizar correctamente el análisis correspondiende a la @fig-varF y obtener $H(f_i, r)$, hace falta reducir el rango del vector tiempo, al hacerlo se obtiene la @fig-respuestax
-
-```{julia}
-#| output: false
-#| echo: false
-t = range(d-2.01r0, d-2r0, N)./v
-```
-```{julia}
-#| echo: false
-#| label: fig-respuestax
-#| fig-cap: "Fila 1: $f$ = 0.9 GHz. Fila 2: $f$ = 1.1 GHz."
-f1, f2, f3 = (-100e6, 0, 100e6).+1e9
-Hmax = maximum(H_abs.(f1, t))
-
-params = (ylims=(0,1), legend=false)
-p1 = plot(r.(t), H_abs.(f1, t)./Hmax, ylabel=L"|H(f_1, r)|", xformatter=(_->""); params...)
-p3 = plot(r.(t), H_abs.(f3, t)./Hmax, ylabel=L"|H(f_3, r)|", xlabel="r [m]"; params...)
-
-plot(p1, p3, layout=(2,1), size=(480,240))
-```
-Esto se debe a que la longitud de coherencia de este canal es del órden de los centímetros. Se observa que la distancia de coherencia disminuye al incrementar la frecuencia de transmisión. 
-
-De la misma forma que con el análisis anterior, se compara la evolución de la transferencia del canal a determinada frecuencia con la diferencia de fase. Los resultados para $f = 1\text{ GHz}$ se presentan en la @fig-xc
-```{julia}
-#| echo: false
-#| label: fig-xc
-#| fig-cap: "Mínimo $=a_1(r)-a_2(r)$, interferencia destructiva. Máximo $=a_1(f)+a_2(f)$, interferencia constructiva."
-t2 = range(d-2.005r0, d-2r0, N)./v
-
-Hs = H_abs.(1e9, t2)
-Hmax = (ai[1].(t2).-ai[2].(t2))./maximum(Hs)
-Hmin = (ai[1].(t2).+ai[2].(t2))./maximum(Hs)
-Hs = Hs./maximum(Hs)
-
-p1 = plot(r.(t2), Hs, ylims=(0,1.1), link=:x, legend=:outerright, label=false, ylabel=L"|H(f_2, t)|")
-plot!(p1, r.(t2), Hmax, linecolor=:black, linestyle=:dot, label=L"H_{Max}", link=:x)
-plot!(p1, r.(t2), Hmin, linecolor=:black, linestyle=:dash, label=L"H_{Min}", link=:x, xformatter=(_->""))
-
-p2 = plot(r.(t2), dif_fase.(1e9, t2), xlabel=L"$r$ [m]", link=:x, legend=:false, ylabel=L"\Delta\theta(f_2, t)")
-plot!(p2, [r(t2[1]), r(t2[end])], [0, 0], linecolor=:gray, linestyle=:dash)
-
-t2 = range(d-1.7r0, d-1.5r0, N)./v
-
-plot(p1, p2, layout=(2,1), size=(480,240))
-```
-Nuevamente se observan máximos en distancias tales que $\Delta\theta\simeq 0$, y mínimos en distancias tales que $\Delta\theta\simeq\pm\pi$.
-
-Finalmente se puede constatar que los resultados obtenidos por la simulación son consistentes con los resultados analíticos esperados, 
-para esto se define una función que calcula empíricamente el período de una señal
-```{julia}
-#| echo: false
-#| output: false
-function argmaxima(x)
-  idx = []
-  for i in 2:length(x)-1
-    x[i-1]<x[i] && x[i]>x[i+1] && push!(idx, i)
-  end
-  return idx 
-end
-
-t1 = range(0, d-2r0)./v
-#| label: fig-xcdef
-#| fig-cap: "Xc de f"
-t2 = range(d-2.01r0, d-2r0, N)./v
-f1 = f0.+range(-BW/2, BW/2, N)
-f2 = f0.+range(-BW/2, BW/2, N).*20
-```
-```{julia}
-#| output: false
-T_emp(t, x) = t[argmaxima(x)] |> diff |> mean
-```
-Esta función se utiliza para medir el ancho de banda de coherencia empírico realizando un barrido en tiempo
-```{julia}
-#| output: false
-#| echo: false
-t = t1; f = f1;
-```
-```{julia}
-#| output: false
-Wc_emp = [T_emp(f,H_abs.(f,ti))/2 for ti in t]
-```
-Y para medir la distancia de coherencia empírica realizando un barrido en frecuencia
-```{julia}
-#| output: false
-#| echo: false
-t = t2; f = f2;
-```
-```{julia}
-#| output: false
-Tc_emp = [T_emp(t,H_abs.(fi,t))/2 for fi in f]
-```
-
-Estos resultados empíricos se compararán con los resultados analíticos provenientes de analizar la @eq-fase2
+Al llamar $\mathbf{\check y}$ al resultado de transimitir el vector $\mathbf{\check x}$ a través de un canal con respuesta al impulso $\mathbf h$, se puede interpretar la transmisión de la siguiente forma. 
 $$
-  W_C = \frac{c}{4(d-r)} \qquad\qquad\qquad X_c = \frac{c}{4f}
+  \mathbf{\check y} = \mathbf{H\check x} + \mathbf w \implies \mathbf{E \check y} = \mathbf{E H E \bar x} + \mathbf{E w} 
+$${#eq-interleave_transmit}
+
+Se puede verificar que siendo $\mathbf H$ la matriz diagonal definida por $\mathbf h$, entonces
 $$
-La expresiones analíticas se implementan y se procede a realizar la simulación
-```{julia}
-#| output: false
-Wc(x) = c/(4*(d-x))
+\mathbf H = \diag(\mathbf h) \implies \mathbf{EHE} = \diag(\mathbf{Eh})
+$$ 
 
-Xc(f) = c/(4*f)
-```
-Se comparan ambos resultados para el ancho de banda de coherencia, presentados en la @fig-wcder. Se observa que ambos resultados son perféctamente consistentes
+A lo que podemos llamar $\mathbf{\check H}$, de la misma forma llamando a $\mathbf{\check y} = \mathbf{H\bar y}$ la @eq-interleave_transmit queda
+$$
+\mathbf{\bar y} = \mathbf{\check H \bar x} + \mathbf{\check w}
+\qquad\qquad
+\mathbf{\bar y} = \begin{bmatrix}
+  \mathbf{\bar y_1}\\
+  \vdots \\
+  \mathbf{\bar y_L}
+\end{bmatrix}
+$$
+
+En donde los vectores $\mathbf{\bar y_\ell}$ corresponden a cada $x_\ell$ codificado. El estadístico suficiente decodifica los correspondientes vectores reduciéndolos nuevamente a un escalar. 
+$$
+  r_\ell = \frac{\mathbf{\check h^*_\ell}}{\Vert \mathbf{\check h_\ell} \Vert} \mathbf{\bar y_\ell} = \Vert \mathbf{\check h_\ell} \Vert x_\ell + \frac{\mathbf{\check h^*_\ell}}{\Vert \mathbf{\check h_\ell} \Vert} \mathbf{\check w}
+$${#eq-suf_statistic_v}
+
+La detección por máxima verosimilitud se realiza con la misma regla de decisión definida en la @eq-decision aplicada sobre el estadístico suficiente definido en la @eq-suf_statistic_v.
+
+El canal entonces de principio a fin se puede interpretar de la forma expresada en la @fig-fullchannel
+
+![Transimisón-Recepción con diversidad temporal: Codificación, entrelazado, canal físico, desentrelazado, y decodificación.](Images/Fig1.tex){#fig-fullchannel}
+
+Incorporando los bloques de entrelazado al canal, la @fig-fullchannel se puede reducir a la @fig-reducedchannel, efectivamente se transmiten los bloques de datos por un canal lógico, que cuenta con la respuesta al impulso del canal físico pero entrelazada.
+
+![Transmisión-Recepción con diversidad temporal: Codificación, canal entrelazado, y decodificación.](Images/Fig2.tex){#fig-reducedchannel}
+
+La tasa de error teórica, también definida por @tse_32 estará dada por la siguiente expresión
+$$
+  \text{BER}_T = \left(\frac{1-\mu}{2}\right)^L\sum_{\ell=0}^{L-1} {L-1+\ell \choose \ell} \left(\frac{1+\mu}{2}\right)^\ell \quad   \mu = \sqrt{\frac{\text{SNR}}{1+\text{SNR}}}
+$${#eq-berT_vec}
+
 ```{julia}
 #| echo: false
-#| label: fig-wcder
-#| fig-cap: "Comparación de resultados empíricos de ancho de banda de coherencia ante un barrido espacial contra la solución analítica esperada."
+#| label: fig-transmit_rep
+#| fig-cap: Ejemplo de la simulación de transisión-recepción de una secuencia de 50 símbolos BPSK, resaltando los errores de transmisión.
 
-p1 = plot(legend=:topleft, size=(480,240))
-plot!(r.(t1), Wc.(r.(t1)).*1e-3, xlabel=L"$r$ [m]", ylabel=L"$W_c$ [kHz]", linestyle=:dash, linewidth=3, label="Analítico")
-plot!(p1, r.(t1), Wc_emp.*1e-3, linewidth=0.5, color=:black, label="Empírico")
+#m_len = 18
+#m_len2 = 3*18
+#h = 1
+#N0 = 5
+#
+#t = 1:m_len
+#x_o = rand([-1,1], m_len)
+#x_r = Lib.repetition(x_o, 3)
+#x_i = Lib.interleave(x_r, 3)
+#
+#
+#r = Lib.tx.(x, h, N0)
+#y = Lib.rx.(r, h)
+#p1 = plot(t, x, line=:stem, marker=:square, framestyle=:origin, title="Secuencia Tx", yaxis=[], xaxis=[])
+#p2 = plot(t[y .== x], y[y .== x], line=:stem, marker=:square, framestyle=:origin, title="Secuencia Rx")
+#plot!(p2, t[y .!= x], y[y .!= x], line=:stem, marker=:square, color=:darkred, yaxis=[], xaxis=[])
+#plot(p1, p2, layout=(2,1), size=(400,200), legend=false)
 ```
-De la misma forma se comparan los resultados para la longitud de coherencia, presentados en la figura @fig-xcdef, nuevamente observando que son consistentes
+
+En una primera instancia, se compara el efecto de aplicar un código de repetición, se utiliza una velocidad de receptor que asegure _full diversity_ y se compara $L = 1$ (sin repetición) contra $L=2$ y $L=3$.
+
 ```{julia}
 #| echo: false
-#| label: fig-xcdef
-#| fig-cap: "Comparación de resultados empíricos de distancia de coherencia ante un barrido en frecuencia contra la solución analítica esperada."
+#| label: fig-berL
+#| fig-cap: Comparación de efecto de aplicar código de repetición de diferentes tasas y sus respectivas curvas teóricas.
 
-p1 = plot(legend=:topright, size=(480,240), legendcolumns=-1)
-plot!(p1, f2.*1e-9, Xc.(f2).*1e3, xlabel=L"$f$ [Ghz]", ylabel=L"$X_c$ [mm]", linestyle=:dash, linewidth=3, label="Analítico")
-plot!(p1, f2.*1e-9, Tc_emp.*v.*1e3, linewidth=0.5, color=:black, label="Empírico")
-plot(p1)
+default(fontfamily="serif", legendfontsize=10, titlefontsize=12, palette=palette(:seaborn_deep6)[1:3])
+
+ber_TL2 = Lib.BER_T.(snr_cont, 2)
+ber_TL3 = Lib.BER_T.(snr_cont, 3)
+
+ber_EL2 = Lib.BER_E(snr_disc, h0, n_points, m_len, 2, 3)
+ber_EL3 = Lib.BER_E(snr_disc, h0, n_points, m_len, 3, 3)
+
+plot(snrdb_disc,  nextfloat.(ber_E), yaxis=(:log, [1e-8, 1]), label="L = 1", line=false, marker=:square)
+plot!(snrdb_disc, nextfloat.(ber_EL2), yaxis=(:log, [1e-8, 1]), label="L = 2", line=false, marker=:square)
+plot!(snrdb_disc, nextfloat.(ber_EL3), yaxis=(:log, [1e-8, 1]), label="L = 3", line=false, marker=:square)
+
+plot!(snrdb_cont, nextfloat.(ber_T),   label=false, yaxis=(:log, [1e-8, 1]), xlabel="SNR [dB]", ylabel="BER")
+plot!(snrdb_cont, nextfloat.(ber_TL2), label=false, yaxis=(:log, [1e-8, 1]), xlabel="SNR [dB]", ylabel="BER")
+plot!(snrdb_cont, nextfloat.(ber_TL3), label=false, yaxis=(:log, [1e-8, 1]), xlabel="SNR [dB]", ylabel="BER")
 ```
-La consistencia de los resultados empíricos respecto a la solución analítica conocida permiten verificar que las simulaciones fueron realizadas correctamente. 
+Se compara también el efecto del grado de diversidad, se utiliza para un código $L=3$ un receptor estático, $v_1=0$, un receptor a una velocidad $v_3$ que asegure _full diversity_, y una velocidad intermedia $v_2<v_3$.
+```{julia}
+#| echo: false
+#| label: fig-ber_v
+#| fig-cap: Comparación de efecto de aplicar código de repetición $L = 3$ a diferentes velocidades contra la curva teórica esperada.
 
-## Conclusiones
+default(fontfamily="serif", legendfontsize=10, titlefontsize=12, palette=palette(:seaborn_deep6)[1:3])
 
-En la simulación fue posible identificar el ancho de banda de coherencia, distancia de coherencia, y el _delay spread_ observando la transferencia del canal. Se visualizó además como estas características se ven afectadas por variaciones espaciales o en el dominio de la frecuencia. 
+ber_Ev0 = Lib.BER_E(snr_disc, h0, n_points, m_len, 3, 0)
+ber_Ev1 = Lib.BER_E(snr_disc, h0, n_points, m_len, 3, 1)
 
-En análisis final verificó que los resultados de la simulación son los esperados, correspondientes a la solución analítica. 
+plot(snrdb_disc,  nextfloat.(ber_Ev0), yaxis=(:log, [1e-8, 1]), label=L"v_1", line=false, marker=:square)
+plot!(snrdb_disc, nextfloat.(ber_Ev1), yaxis=(:log, [1e-8, 1]), label=L"v_2", line=false, marker=:square)
+plot!(snrdb_disc, nextfloat.(ber_EL3), yaxis=(:log, [1e-8, 1]), label=L"v_3", line=false, marker=:square)
 
-Es útil verificar la simulación contra una solución analítica conocida, ya que hacerlo permite confiar en resultados de simulación para casos en los que la solución analítica no es fácil de encontrar. 
+plot!(snrdb_cont, nextfloat.(ber_TL3), label=false, yaxis=(:log, [1e-8, 1]), xlabel="SNR [dB]", ylabel="BER", color=palette(:seaborn_deep6)[3])
+```
 
-El estudio se realizó para un canal simple, pero el método implementado es capaz de simular cualquier modelo de canal de dos caminos siempre que se conozcan previamente las expresiones $a_i(t)$ y $\tau_i(t)$.
-
-También sería fácil extender la implementación para simular canales con un número mayor de caminos y visualizar así respuestas más complejas.
+Se observa que existe una ganancia de diversidad apreciable por aplicar código de repetición, incluso a $L$ baja. Sin embargo, los resultados presentados en la @fig-ber_v muestran que es necesario asegurar que exista _full diversity_ para que la ganancia por diversidad teórica sea realizada. 

@@ -11,7 +11,7 @@ format:
   pdf:
     fontfamily: libertinus
     pdf-engine: lualatex
-    include-in-header: Tex/headers.tex
+    include-in-header: ../Tex/headers.tex
     include-before-body: Tex/tikzsetup.tex
     cite-method: biblatex
     classoption: twocolumn
